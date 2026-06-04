@@ -199,6 +199,10 @@ textarea{resize:vertical;min-height:64px}
 .setup-note{background:#2a1f4d;border:1px solid #ffd23f44;border-radius:14px;padding:16px;font-size:14px;margin-top:18px}
 .setup-note code{background:#0008;padding:2px 6px;border-radius:5px;font-size:13px}
 .answered-count{font-family:'Fredoka';font-weight:700;font-size:clamp(28px,6vw,52px)}
+.double-badge{font-family:'Fredoka';font-weight:700;font-size:18px;color:#1c1500;
+  background:linear-gradient(135deg,#ffd23f,#ff7b54);padding:5px 16px;border-radius:999px;
+  animation:pulse-dbl .85s ease-in-out infinite alternate;white-space:nowrap}
+@keyframes pulse-dbl{from{transform:scale(1)}to{transform:scale(1.1)}}
 </style>
 </head>
 <body>
@@ -217,18 +221,16 @@ textarea{resize:vertical;min-height:64px}
           <input id="j-pin" inputmode="numeric" maxlength="4" placeholder="0000"
             style="text-align:center;font-family:'Fredoka';font-weight:700;font-size:34px;letter-spacing:8px">
         </div>
-        <div class="field" id="j-name-field">
+        <div class="field" id="j-name-field" style="margin-bottom:8px">
           <label>El teu nom i cognom</label>
           <input id="j-name" placeholder="Nom Cognom" autocomplete="off">
-        </div>
-        <div class="field" id="j-email-field">
-          <label>Correu de l'institut</label>
-          <input id="j-email" type="email" placeholder="cognom.nom@institutmatadepera.cat" autocomplete="off">
           <div class="warn" id="j-warn"></div>
         </div>
-        <button class="btn big" onclick="playerJoin()">Entrar al joc</button>
+        <div id="j-choose" class="hide" style="margin:6px 0 14px"></div>
+        <button class="btn big" id="j-enter" onclick="playerJoin()">Entrar al joc</button>
       </div>
-     </div>
+      <div class="tag" style="margin-top:18px">Ets el professor? Obre aquesta pàgina amb <b>#host</b> al final de l'adreça.</div>
+    </div>
   </div>
 </div>
 
@@ -256,6 +258,7 @@ textarea{resize:vertical;min-height:64px}
   <div class="wrap">
     <div class="qbar">
       <span class="qcount" id="pq-count">1/10</span>
+      <span id="pq-double" class="double-badge hide" style="margin-left:10px">×2 DOBLE!</span>
       <div style="flex:1"></div>
       <div class="timer" id="pq-timer"></div>
     </div>
@@ -302,6 +305,27 @@ textarea{resize:vertical;min-height:64px}
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
+     HOST · LOGIN (contrasenya)
+     ══════════════════════════════════════════════════════════ -->
+<div id="s-hlogin" class="screen center">
+  <div class="wrap center">
+    <div class="box">
+      <div class="brand">Quiz&nbsp;Arena</div>
+      <div class="tag">Panell del professor</div>
+      <div class="panel" style="margin-top:26px">
+        <div class="field">
+          <label>Contrasenya del professor</label>
+          <input id="hl-pass" type="password" placeholder="••••••" autocomplete="off"
+            onkeydown="if(event.key==='Enter')checkHostPass()">
+          <div class="warn" id="hl-pass-warn"></div>
+        </div>
+        <button class="btn big" onclick="checkHostPass()">Entrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
      HOST · QUIZ MANAGER
      ══════════════════════════════════════════════════════════ -->
 <div id="s-hquizzes" class="screen">
@@ -310,7 +334,7 @@ textarea{resize:vertical;min-height:64px}
       <div><span class="brand" style="font-size:30px">Quiz Arena</span><div class="tag">Panell del professor</div></div>
       <div class="row" style="gap:10px">
         <button class="btn ghost sm" onclick="openHistory()">📊 Historial</button>
-        <button class="btn ghost sm" onclick="openRoster()">👥 Alumnes</button>
+        <button class="btn ghost sm" onclick="openLists()">👥 Alumnes</button>
         <button class="btn sm" onclick="newQuiz()">+ Nou quiz</button>
       </div>
     </div>
@@ -356,37 +380,75 @@ textarea{resize:vertical;min-height:64px}
         <option value="60">60 segons</option>
       </select>
     </div>
+    <div class="field" style="max-width:480px;margin-top:4px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="ed-shuffle" style="width:20px;height:20px;accent-color:var(--accent);flex:none">
+        <span>🔀 Aleatoritzar l'ordre de les opcions per a cada alumne</span>
+      </label>
+      <p class="muted" style="font-size:13px;margin-top:5px;margin-left:30px">Cada jugador veu les opcions en un ordre diferent, dificultant còpies entre companys.</p>
+    </div>
     <div id="ed-questions"></div>
     <button class="btn ghost" style="margin:8px 0 30px" onclick="addQuestion()">+ Afegir pregunta</button>
   </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
-     HOST · GESTIÓ D'ALUMNES
+     HOST · LLISTES DE CLASSE (gestor)
      ══════════════════════════════════════════════════════════ -->
-<div id="s-hroster" class="screen">
+<div id="s-hlists" class="screen">
   <div class="wrap scroll">
     <div class="topbar">
       <button class="btn ghost sm" onclick="backToQuizzes()">← Tornar</button>
+      <h2 style="font-size:24px">👥 Llistes de classe</h2>
+      <button class="btn sm" onclick="newList()">+ Nova llista</button>
+    </div>
+    <div id="lists-list"></div>
+    <div id="lists-empty" class="card center hide" style="padding:46px">
+      <div style="font-size:46px">🧑‍🏫</div>
+      <h3 style="margin:12px 0">Encara no hi ha cap llista</h3>
+      <p class="muted">Crea una llista per a cada classe (4t A, 4t B…). Quan llancis un quiz podràs triar quina classe hi juga.</p>
+      <button class="btn" style="margin-top:18px" onclick="newList()">+ Crear llista</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     HOST · EDITOR DE LLISTA
+     ══════════════════════════════════════════════════════════ -->
+<div id="s-hlistedit" class="screen">
+  <div class="wrap scroll">
+    <div class="topbar">
+      <button class="btn ghost sm" onclick="openLists()">← Tornar</button>
       <div class="row" style="gap:10px">
-        <button class="btn ghost sm" onclick="downloadStudentTemplate()">⬇ Plantilla d'alumnes (CSV)</button>
+        <button class="btn ghost sm" onclick="downloadStudentTemplate()">⬇ Plantilla (CSV)</button>
         <button class="btn ghost sm" onclick="importStudentsCSVPrompt()">⬆ Importar CSV</button>
-        <button class="btn green sm" onclick="saveRoster()">💾 Desar llista</button>
+        <button class="btn green sm" onclick="saveList()">💾 Desar llista</button>
       </div>
     </div>
-    <h2 style="font-size:26px;margin-bottom:6px">👥 Llista d'alumnes</h2>
-    <p class="muted" style="margin-bottom:14px">
-      Un alumne per línia. Pots escriure només el correu, o <code>nom,correu</code>.
-      També pots copiar columnes directament des d'un Google Sheets i enganxar-les aquí.
-      <span id="roster-count" style="color:var(--accent);font-weight:700"></span>
-    </p>
-    <textarea id="roster-text" style="min-height:340px;font-family:monospace;font-size:14px"
-      placeholder="Júlia Roca,julia.roca@institutmatadepera.cat&#10;marc.vila@institutmatadepera.cat&#10;..."
-      oninput="updateRosterCount()"></textarea>
-    <div class="setup-note" style="margin-top:14px">
-      ℹ️ La validació de correu només s'aplica quan <code>REQUIRE_CLASS_LIST = true</code> al codi.
-      Amb <code>false</code>, els alumnes entren només amb el nom (útil per a proves).
+    <div class="field" style="max-width:360px">
+      <label>Nom de la classe</label>
+      <input id="list-name" placeholder="Ex: 4t A">
     </div>
+    <h3 style="font-size:18px;margin:6px 0 4px">Alumnes <span id="list-count" style="color:var(--accent)"></span></h3>
+    <p class="muted" style="margin-bottom:10px">
+      Un alumne per línia, amb <b>nom i cognom</b> (recomanat per distingir repetits, p. ex. "Marc Vila" i "Marc Puig").
+      Pots copiar una columna des d'un Google Sheets i enganxar-la aquí.
+    </p>
+    <textarea id="list-text" style="min-height:320px;font-family:monospace;font-size:15px"
+      placeholder="Júlia Roca&#10;Marc Vila&#10;Marc Puig&#10;Anna Soler&#10;..."
+      oninput="updateListCount()"></textarea>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     HOST · TRIAR CLASSE EN LLANÇAR
+     ══════════════════════════════════════════════════════════ -->
+<div id="s-hpick" class="screen center">
+  <div class="wrap center">
+    <button class="btn ghost sm" style="position:absolute;left:24px;top:24px" onclick="backToQuizzes()">← Tornar</button>
+    <h2 style="font-size:28px;margin-bottom:6px">Quina classe hi juga?</h2>
+    <p class="tag" id="pick-quiztitle" style="margin-bottom:22px"></p>
+    <div id="pick-lists" style="display:flex;flex-direction:column;gap:12px;max-width:460px;width:100%"></div>
   </div>
 </div>
 
@@ -418,6 +480,7 @@ textarea{resize:vertical;min-height:64px}
     <div class="progress-track"><div class="progress-fill" id="hq-progress"></div></div>
     <div class="qbar">
       <span class="qcount" id="hq-count">1/10</span>
+      <span id="hq-double" class="double-badge hide" style="margin-left:10px">×2 DOBLE!</span>
       <div style="flex:1"></div>
       <div class="row" style="gap:8px;font-family:'Fredoka';font-weight:600">
         <span id="hq-answered">0</span><span class="muted">han respost</span>
@@ -440,7 +503,8 @@ textarea{resize:vertical;min-height:64px}
 <div id="s-hresults" class="screen">
   <div class="wrap">
     <div class="progress-track"><div class="progress-fill" id="hr-progress"></div></div>
-    <h2 id="hr-text" style="font-size:clamp(22px,3vw,34px);text-align:center;margin-bottom:6px"></h2>
+    <h2 id="hr-text" style="font-size:clamp(22px,3vw,34px);text-align:center;margin-bottom:4px"></h2>
+    <div style="text-align:center;margin-bottom:8px"><span id="hr-double" class="double-badge hide">×2 DOBLE!</span></div>
     <div class="bars" id="hr-bars"></div>
     <div id="hr-expl" class="expl hide"></div>
     <h3 style="text-align:center;font-size:22px;margin:10px 0 14px">🏅 Classificació</h3>
@@ -515,20 +579,14 @@ const FIREBASE_CONFIG = {
   appId: "1:128300813323:web:d623931cce6b6c2934cb0e"
 };
 
-/* ── 2) LLISTA DE CLASSE ──
-   Si REQUIRE_CLASS_LIST = false  →  els alumnes només posen el nom (ideal per provar).
-   Si REQUIRE_CLASS_LIST = true   →  cal nom + correu, validat contra la llista d'alumnes.
-   La llista d'alumnes ara es gestiona des del panell del professor (botó "Alumnes")
-   i es desa a Firebase. CLASS_EMAILS de sota només s'utilitza com a llista inicial
-   si encara no n'has desada cap des del panell. */
-const REQUIRE_CLASS_LIST = false;
-const SCHOOL_DOMAIN = "institutmatadepera.cat";  // buit ("") = no es comprova el domini
-const CLASS_EMAILS = [
-  // "cognom.nom@institutmatadepera.cat",
-  // "altre.alumne@institutmatadepera.cat",
-];
+/* ── 2) LLISTES DE CLASSE ──
+   Les llistes d'alumnes (per nom) es gestionen des del panell del professor
+   (botó "Alumnes") i es desen a Firebase. Quan llances un quiz, tries quina
+   classe hi juga; els alumnes entren escrivint el seu nom. No cal tocar res aquí. */
 
-/* ── 3) PIN del professor (opcional). Buit = sense contrasenya. ── */
+/* ── 3) CONTRASENYA DEL PROFESSOR ──
+   Si poses un codi, demanarà aquesta contrasenya abans d'entrar al panell (#host).
+   Deixa-ho buit ("") per no demanar res. Exemple: const HOST_PIN = "elmeucodi"; */
 const HOST_PIN = "";
 
 /* ════════════════════════════════════════════════════════════
@@ -695,9 +753,23 @@ let hostGame=null;     // {pin, quiz, players, scores}
 
 function hostInit(){
   if(HOST_PIN){
-    const p=prompt('PIN del professor:');
-    if(p!==HOST_PIN){ document.body.innerHTML='<div style="color:#fff;font-family:sans-serif;padding:40px">Accés denegat.</div>'; return; }
+    let okAuth=false;
+    try{ okAuth = sessionStorage.getItem('hostAuth')==='1'; }catch(e){}
+    if(!okAuth){ show('s-hlogin'); setTimeout(()=>{const e=document.getElementById('hl-pass');if(e)e.focus();},100); return; }
   }
+  hostMain();
+}
+function checkHostPass(){
+  const v=document.getElementById('hl-pass').value;
+  const w=document.getElementById('hl-pass-warn');
+  if(v===HOST_PIN){
+    try{ sessionStorage.setItem('hostAuth','1'); }catch(e){}
+    hostMain();
+  }else{
+    w.style.display='block'; w.textContent='Contrasenya incorrecta.';
+  }
+}
+function hostMain(){
   show('s-hquizzes');
   cleanupOldGames();
   db.ref('quizzes').on('value',snap=>{
@@ -733,9 +805,10 @@ function renderQuizList(){
     return `<div class="qlist-row" style="cursor:default">
       <div style="flex:1">
         <div style="font-family:'Fredoka';font-weight:600;font-size:20px">${esc(q.title||'Sense títol')}</div>
-        <div class="muted" style="font-size:14px">${n} preguntes · ${q.time||20}s per pregunta</div>
+        <div class="muted" style="font-size:14px">${n} preguntes · ${q.time||20}s per pregunta${q.shuffle?' · 🔀':''}</div>
       </div>
-      <button class="btn green sm" onclick="launchGame('${id}')">▶ Jugar</button>
+      <button class="btn green sm" onclick="openLaunchPicker('${id}')">▶ Jugar</button>
+      <button class="btn ghost sm" onclick="duplicateQuiz('${id}')">⧉ Duplicar</button>
       <button class="btn ghost sm" onclick="editQuiz('${id}')">✏️</button>
       <button class="btn danger sm" onclick="deleteQuiz('${id}')">🗑</button>
     </div>`;
@@ -759,6 +832,7 @@ function openEditor(){
   document.getElementById('ed-title').value=editing.quiz.title||'';
   const def=editing.quiz.time||20;
   document.getElementById('ed-time').value=[10,20,30,40,60].includes(def)?def:20;
+  document.getElementById('ed-shuffle').checked=!!editing.quiz.shuffle;
   renderQuestionsEditor();
 }
 function renderQuestionsEditor(){
@@ -787,10 +861,15 @@ function renderQuestionsEditor(){
         </div>`).join('')}
       <div class="muted" style="font-size:13px;margin-bottom:10px">El cercle ✓ marca la resposta correcta.</div>`;
     }
+    const nQ=editing.quiz.questions.length;
     return `
     <div class="qedit">
       <div class="qhead">
-        <span class="qn" style="font-family:'Fredoka';font-weight:700;color:var(--accent)">Pregunta ${i+1}</span>
+        <div class="row" style="gap:6px;align-items:center">
+          <span class="qn" style="font-family:'Fredoka';font-weight:700;color:var(--accent)">Pregunta ${i+1}</span>
+          <button class="btn ghost sm" style="padding:5px 10px;font-size:15px;line-height:1" onclick="moveQuestion(${i},-1)" ${i===0?'disabled':''} title="Moure amunt">↑</button>
+          <button class="btn ghost sm" style="padding:5px 10px;font-size:15px;line-height:1" onclick="moveQuestion(${i},1)" ${i===nQ-1?'disabled':''} title="Moure avall">↓</button>
+        </div>
         <div class="row" style="gap:10px;flex-wrap:wrap">
           <select onchange="updType(${i},this.value)" style="width:auto;padding:8px 10px;font-size:14px">
             <option value="mcq" ${!tf?'selected':''}>Opció múltiple</option>
@@ -800,6 +879,10 @@ function renderQuestionsEditor(){
             <select onchange="updTime(${i},this.value)" style="width:auto;padding:8px 10px;font-size:14px">
               ${TIMES.map(t=>`<option value="${t}" ${qt===t?'selected':''}>${t}s</option>`).join('')}
             </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:'Fredoka';font-weight:600;font-size:14px;color:var(--accent);padding:6px 12px;border:2px solid ${q.double?'var(--accent)':'var(--line)'};border-radius:10px;background:${q.double?'rgba(255,210,63,.12)':'transparent'}" title="Aquesta pregunta val el doble de punts">
+            <input type="checkbox" ${q.double?'checked':''} onchange="upd(${i},'double',this.checked);renderQuestionsEditor()" style="width:18px;height:18px;accent-color:var(--accent);flex:none">
+            ×2 Doble
           </label>
           <button class="btn danger sm" onclick="delQuestion(${i})">Eliminar</button>
         </div>
@@ -841,6 +924,13 @@ function delQuestion(i){
   editing.quiz.questions.splice(i,1);
   renderQuestionsEditor();
 }
+function moveQuestion(i,dir){
+  const qs=editing.quiz.questions;
+  const j=i+dir;
+  if(j<0||j>=qs.length) return;
+  [qs[i],qs[j]]=[qs[j],qs[i]];
+  renderQuestionsEditor();
+}
 function saveQuiz(){
   const title=document.getElementById('ed-title').value.trim();
   const time=Math.max(5,Math.min(120,parseInt(document.getElementById('ed-time').value)||20));
@@ -856,7 +946,7 @@ function saveQuiz(){
     if(!q.time) q.time=time;            // fallback al temps per defecte
     if(q.explanation==null) q.explanation='';
   }
-  editing.quiz.title=title; editing.quiz.time=time;
+  editing.quiz.title=title; editing.quiz.time=time; editing.quiz.shuffle=document.getElementById('ed-shuffle').checked;
   if(editing.id){ db.ref('quizzes/'+editing.id).set(editing.quiz); }
   else { db.ref('quizzes').push().set(editing.quiz); }
   toast('Quiz desat ✓');
@@ -865,6 +955,12 @@ function saveQuiz(){
 function deleteQuiz(id){
   if(!confirm('Eliminar aquest quiz?')) return;
   db.ref('quizzes/'+id).remove();
+}
+function duplicateQuiz(id){
+  const q=JSON.parse(JSON.stringify(quizzes[id]));
+  q.title=(q.title||'Quiz')+' (còpia)';
+  db.ref('quizzes').push().set(q);
+  toast('Quiz duplicat ✓');
 }
 function backToQuizzes(){ editing=null; show('s-hquizzes'); }
 
@@ -996,44 +1092,66 @@ function importQuizCSVPrompt(){
 }
 
 /* ════════════════════════════════════════════════════════════
-   GESTIÓ D'ALUMNES (roster a Firebase)
+   LLISTES DE CLASSE (gestor, desades a Firebase node 'lists')
    ════════════════════════════════════════════════════════════ */
-function openRoster(){
-  show('s-hroster');
-  db.ref('roster').once('value',snap=>{
-    let list=snap.val();
-    if(!list||(Array.isArray(list)&&list.length===0)){
-      // si no n'hi ha desada, parteix de CLASS_EMAILS del codi
-      list=CLASS_EMAILS.map(e=>({name:'',email:e}));
-    }
-    const lines=(list||[]).map(s=>{
-      if(typeof s==='string') return s;
-      return s.name?(s.name+','+s.email):s.email;
-    });
-    document.getElementById('roster-text').value=lines.join('\n');
-    updateRosterCount();
-  });
+let lists={};            // id -> {name, students:[]}
+let editingList=null;    // {id, list}
+
+function openLists(){
+  show('s-hlists');
+  db.ref('lists').on('value',snap=>{ lists=snap.val()||{}; renderLists(); });
 }
-function parseRosterText(text){
+function renderLists(){
+  const ids=Object.keys(lists);
+  document.getElementById('lists-empty').classList.toggle('hide',ids.length>0);
+  document.getElementById('lists-list').innerHTML=ids.map(id=>{
+    const l=lists[id]; const n=(l.students||[]).length;
+    return `<div class="qlist-row" style="cursor:default">
+      <div style="flex:1">
+        <div style="font-family:'Fredoka';font-weight:600;font-size:19px">${esc(l.name||'Sense nom')}</div>
+        <div class="muted" style="font-size:14px">${n} alumnes</div>
+      </div>
+      <button class="btn ghost sm" onclick="editList('${id}')">✏️ Editar</button>
+      <button class="btn danger sm" onclick="deleteList('${id}')">🗑</button>
+    </div>`;
+  }).join('');
+}
+function newList(){ editingList={id:null, list:{name:'',students:[]}}; openListEditor(); }
+function editList(id){ editingList={id, list:JSON.parse(JSON.stringify(lists[id]||{name:'',students:[]}))}; openListEditor(); }
+function openListEditor(){
+  show('s-hlistedit');
+  document.getElementById('list-name').value=editingList.list.name||'';
+  document.getElementById('list-text').value=(editingList.list.students||[]).join('\n');
+  updateListCount();
+}
+function parseNames(text){
   const out=[];const seen=new Set();
   text.split(/\n/).forEach(line=>{
-    line=line.trim(); if(!line) return;
-    const parts=line.split(/[,;\t]/).map(p=>p.trim()).filter(Boolean);
-    let email='',name='';
-    parts.forEach(p=>{ if(p.includes('@')&&!email) email=p.toLowerCase(); else if(!name) name=p; });
-    if(!email&&parts.length){ email=parts[parts.length-1].toLowerCase(); } // si no hi ha @, agafa l'últim token
-    if(email&&!seen.has(email)){ seen.add(email); out.push({name,email}); }
+    // si enganxen "cognom, nom" o tabulat, ho ajuntem en un sol nom net
+    const name=line.replace(/[;\t]+/g,' ').replace(/\s+/g,' ').trim();
+    if(!name) return;
+    const key=name.toLowerCase();
+    if(!seen.has(key)){ seen.add(key); out.push(name); }
   });
   return out;
 }
-function updateRosterCount(){
-  const n=parseRosterText(document.getElementById('roster-text').value).length;
-  document.getElementById('roster-count').textContent=' · '+n+' alumnes';
+function updateListCount(){
+  const n=parseNames(document.getElementById('list-text').value).length;
+  document.getElementById('list-count').textContent='· '+n+' alumnes';
 }
-function saveRoster(){
-  const list=parseRosterText(document.getElementById('roster-text').value);
-  db.ref('roster').set(list);
-  toast(list.length+' alumnes desats ✓');
+function saveList(){
+  const name=document.getElementById('list-name').value.trim();
+  if(!name){ toast('Posa un nom a la classe'); return; }
+  const students=parseNames(document.getElementById('list-text').value);
+  const data={name, students};
+  if(editingList.id) db.ref('lists/'+editingList.id).set(data);
+  else db.ref('lists').push().set(data);
+  toast('Llista desada ✓');
+  openLists();
+}
+function deleteList(id){
+  if(!confirm('Eliminar la llista "'+((lists[id]||{}).name||'')+'"?')) return;
+  db.ref('lists/'+id).remove();
 }
 function importStudentsCSVPrompt(){
   const inp=document.createElement('input');inp.type='file';inp.accept='.csv,text/csv';
@@ -1045,25 +1163,19 @@ function importStudentsCSVPrompt(){
         const rows=parseCSV(rd.result);
         let start=0;
         const h0=String(rows[0]&&rows[0][0]||'').trim().toLowerCase();
-        if(h0==='nom'||h0==='name'||(rows[0]||[]).some(c=>/correu|email|e-mail/i.test(c))) start=1;
-        const lines=[];
+        if(['nom','name','nom complet','alumne','alumnes'].includes(h0)) start=1;
+        const names=[];
         for(let i=start;i<rows.length;i++){
-          const r=rows[i]; if(!r.length) continue;
-          // troba la cel·la amb @ com a correu; l'altra com a nom
-          let email='',name='';
-          r.forEach(c=>{ c=(c||'').trim(); if(c.includes('@')&&!email) email=c; else if(!name&&c) name=c; });
-          if(!email) continue;
-          lines.push(name?(name+','+email):email);
+          const r=rows[i]; if(!r||!r.length) continue;
+          // uneix les cel·les no buides de la fila en un sol nom (p. ex. cognom,nom)
+          const name=r.map(c=>(c||'').trim()).filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+          if(name) names.push(name);
         }
-        if(!lines.length) throw 0;
-        // afegeix a la llista actual (sense duplicar)
-        const ta=document.getElementById('roster-text');
-        ta.value=(ta.value.trim()?ta.value.trim()+'\n':'')+lines.join('\n');
-        // re-parseja per netejar duplicats i mostra
-        const cleaned=parseRosterText(ta.value).map(s=>s.name?(s.name+','+s.email):s.email);
-        ta.value=cleaned.join('\n');
-        updateRosterCount();
-        toast(lines.length+' alumnes afegits · recorda DESAR ✓');
+        if(!names.length) throw 0;
+        const ta=document.getElementById('list-text');
+        ta.value=parseNames((ta.value.trim()?ta.value.trim()+'\n':'')+names.join('\n')).join('\n');
+        updateListCount();
+        toast(names.length+' alumnes afegits · recorda DESAR ✓');
       }catch(err){ toast('CSV no vàlid. Fes servir la plantilla.'); }
     };
     rd.readAsText(f);
@@ -1072,31 +1184,70 @@ function importStudentsCSVPrompt(){
 }
 function downloadStudentTemplate(){
   downloadCSV('plantilla-alumnes.csv',[
-    ['nom','correu'],
-    ['Júlia Roca','julia.roca@institutmatadepera.cat'],
-    ['Marc Vila','marc.vila@institutmatadepera.cat']
+    ['nom'],
+    ['Júlia Roca'],
+    ['Marc Vila'],
+    ['Marc Puig'],
+    ['Anna Soler']
   ]);
 }
+
+/* ── Triar classe en llançar un quiz ── */
+let pendingQuizId=null;
+function openLaunchPicker(id){
+  pendingQuizId=id;
+  show('s-hpick');
+  document.getElementById('pick-quiztitle').textContent=(quizzes[id]||{}).title||'';
+  db.ref('lists').once('value',snap=>{
+    const ls=snap.val()||{};
+    const ids=Object.keys(ls);
+    let html=ids.map(lid=>{
+      const l=ls[lid]; const n=(l.students||[]).length;
+      return `<button class="btn big" style="width:100%" onclick="launchGame('${id}','${lid}')">${esc(l.name)} <span style="opacity:.7;font-size:15px">(${n} alumnes)</span></button>`;
+    }).join('');
+    html+=`<button class="btn ghost" style="width:100%" onclick="launchGame('${id}','')">Sense validació · qualsevol nom</button>`;
+    if(!ids.length){
+      html=`<p class="muted" style="margin-bottom:8px">Encara no tens cap llista de classe. Pots crear-ne a 👥 Alumnes, o jugar sense validació:</p>`+html;
+    }
+    document.getElementById('pick-lists').innerHTML=html;
+  });
+}
+
 function genPin(){ return String(Math.floor(1000+Math.random()*9000)); }
-function launchGame(id){
+function launchGame(id, listId){
   // si veníem d'una altra partida en la mateixa sessió, deslliga els seus listeners
   if(hostGame && hostGame.pin){
     db.ref('games/'+hostGame.pin+'/players').off();
     db.ref('games/'+hostGame.pin+'/answers').off();
   }
   const quiz=quizzes[id];
+  // resol la llista triada (si n'hi ha)
+  const finish=(listName,students)=>doLaunch(quiz,listName,students);
+  if(listId){
+    db.ref('lists/'+listId).once('value',s=>{
+      const l=s.val()||{name:'',students:[]};
+      finish(l.name||'', l.students||[]);
+    });
+  }else{
+    finish('', null);
+  }
+}
+function doLaunch(quiz,listName,students){
   const pin=genPin();
-  hostGame={pin, quiz, scores:{}, players:{}, closedQ:-1, detail:{}, viewIdx:0};
+  const validate=Array.isArray(students)&&students.length>0;
+  hostGame={pin, quiz, scores:{}, players:{}, closedQ:-1, detail:{}, viewIdx:0, listName:listName||''};
   // Strip correct answers + explanation from the version players read; keep per-question time
-  const publicQuestions=quiz.questions.map(q=>({q:q.q,options:qOptions(q),time:q.time||quiz.time||20,type:isTF(q)?'tf':'mcq'}));
-  db.ref('games/'+pin).set({
-    meta:{title:quiz.title,total:quiz.questions.length,createdAt:Date.now()},
-    quiz:{questions:publicQuestions},
+  const publicQuestions=quiz.questions.map(q=>({q:q.q,options:qOptions(q),time:q.time||quiz.time||20,type:isTF(q)?'tf':'mcq',double:!!q.double}));
+  const node={
+    meta:{title:quiz.title,total:quiz.questions.length,createdAt:Date.now(),validate,listName:listName||''},
+    quiz:{questions:publicQuestions,shuffle:!!quiz.shuffle},
     state:{phase:'lobby',currentQ:-1,qStartAt:0}
-  });
+  };
+  if(validate) node.roster=students;   // noms permesos (visible per validar al client)
+  db.ref('games/'+pin).set(node);
   show('s-hlobby');
   document.getElementById('hl-pin').textContent=pin;
-  document.getElementById('hl-quiztitle').textContent=quiz.title;
+  document.getElementById('hl-quiztitle').textContent=quiz.title+(listName?(' · '+listName):' · sense validació');
   document.getElementById('hl-players').innerHTML='';
   document.getElementById('hl-count').textContent='0';
   document.getElementById('hl-start').disabled=true;
@@ -1153,6 +1304,7 @@ function renderHostQuestion(idx){
   const total=hostGame.quiz.questions.length;
   const time=q.time||hostGame.quiz.time||20;
   document.getElementById('hq-count').textContent=(idx+1)+'/'+total;
+  document.getElementById('hq-double').classList.toggle('hide',!q.double);
   document.getElementById('hq-text').textContent=q.q;
   document.getElementById('hq-opts').className='opts'+(isTF(q)?' opts-tf':'');
   document.getElementById('hq-opts').innerHTML=qOptions(q).map((o,i)=>
@@ -1228,6 +1380,7 @@ function endQuestion(){
       if(correct){
         const frac=Math.min(a.elapsed||0,time*1000)/(time*1000);
         pts=Math.round(1000*(1-frac/2));
+        if(hostGame.quiz.questions[idx].double) pts*=2;
       }
       hostGame.scores[pid]=(hostGame.scores[pid]||0)+pts;
       detail[pid]={choice:a.choice,correct,points:pts};
@@ -1251,6 +1404,7 @@ function renderHostResults(idx,counts,correctIdx){
   const total=hostGame.quiz.questions.length;
   setHostProgress('hr-progress',idx,total);
   document.getElementById('hr-text').textContent=q.q;
+  document.getElementById('hr-double').classList.toggle('hide',!q.double);
   const max=Math.max(1,...counts);
   const opts=qOptions(q), shapes=qShapes(q), nOpt=qCount(q);
   const barsEl=document.getElementById('hr-bars');
@@ -1352,11 +1506,12 @@ function hostFinish(){
 function saveHistory(){
   const players={};
   Object.keys(hostGame.players||{}).forEach(pid=>{
-    players[pid]={name:hostGame.players[pid].name,email:hostGame.players[pid].email||'',score:hostGame.scores[pid]||0};
+    players[pid]={name:hostGame.players[pid].name,score:hostGame.scores[pid]||0};
   });
   const questions=hostGame.quiz.questions.map(q=>({q:q.q,options:qOptions(q),correct:q.correct,type:isTF(q)?'tf':'mcq'}));
   const record={
     title:hostGame.quiz.title||'Quiz',
+    listName:hostGame.listName||'',
     date:Date.now(),
     n:questions.length,
     questions,
@@ -1377,14 +1532,14 @@ function replaySameQuiz(){
   db.ref('games/'+hostGame.pin+'/state').set({phase:'lobby',currentQ:-1,qStartAt:0});
   show('s-hlobby');
   document.getElementById('hl-pin').textContent=hostGame.pin;
-  document.getElementById('hl-quiztitle').textContent=hostGame.quiz.title;
+  document.getElementById('hl-quiztitle').textContent=hostGame.quiz.title+(hostGame.listName?(' · '+hostGame.listName):' · sense validació');
   toast('Nova ronda · els mateixos alumnes ja hi són');
 }
 
 function leaderboardData(){
   const players=hostGame.players||{};
   return Object.keys(players).map(pid=>({
-    name:players[pid].name,email:players[pid].email||'',score:hostGame.scores[pid]||0
+    pid, name:players[pid].name, score:hostGame.scores[pid]||0
   })).sort((a,b)=>b.score-a.score);
 }
 function renderLeaderboard(elId,limit){
@@ -1398,29 +1553,44 @@ function renderLeaderboard(elId,limit){
     </div>`).join('') || '<p class="muted center">Encara no hi ha puntuacions.</p>';
 }
 
+/* encerts d'un alumne a partir del detall guardat */
+function correctCountFor(pid,detail,nQ){
+  let c=0;
+  for(let k=0;k<nQ;k++){ const a=(detail[k]||{})[pid]; if(a&&a.correct) c++; }
+  return c;
+}
+function grade10(correct,total){ return total? Math.round((correct/total)*10*100)/100 : 0; }
+
 function downloadResults(){
   const data=leaderboardData();
-  const rows=[['Posicio','Nom','Correu','Punts']];
-  data.forEach((p,i)=>rows.push([i+1,p.name,p.email,p.score]));
+  const nQ=hostGame.quiz.questions.length;
+  const detail=hostGame.detail||{};
+  const rows=[['Posicio','Nom','Encerts','Nota (/10)','Punts']];
+  data.forEach((p,i)=>{
+    const c=correctCountFor(p.pid,detail,nQ);
+    rows.push([i+1,p.name,c+'/'+nQ,grade10(c,nQ),p.score]);
+  });
   downloadCSV('resultats-'+(hostGame.quiz.title||'quiz')+'.csv',rows);
 }
 
-/* ── CSV complet: una fila per alumne, una columna per pregunta + total ── */
+/* ── CSV complet: una fila per alumne, una columna per pregunta + encerts/nota/punts ── */
 function buildDetailRows(title,questions,players,answers){
-  const header=['Nom','Correu'];
+  const nQ=questions.length;
+  const header=['Nom'];
   questions.forEach((q,k)=>header.push('P'+(k+1)+' (correcta: '+optLabel(q,q.correct)+')'));
-  header.push('Total');
+  header.push('Encerts','Nota (/10)','Punts');
   const rows=[header];
   // ordena per puntuació desc
   const pids=Object.keys(players).sort((a,b)=>(players[b].score||0)-(players[a].score||0));
   pids.forEach(pid=>{
-    const row=[players[pid].name,players[pid].email||''];
+    const row=[players[pid].name];
+    let correct=0;
     questions.forEach((q,k)=>{
       const a=(answers[k]||{})[pid];
       if(!a||a.choice<0||a.choice==null) row.push('—');
-      else row.push(optLabel(q,a.choice)+(a.correct?' ✓':' ✗'));
+      else { row.push(optLabel(q,a.choice)+(a.correct?' ✓':' ✗')); if(a.correct) correct++; }
     });
-    row.push(players[pid].score||0);
+    row.push(correct+'/'+nQ, grade10(correct,nQ), players[pid].score||0);
     rows.push(row);
   });
   return rows;
@@ -1429,7 +1599,7 @@ function downloadFullResults(){
   const questions=hostGame.quiz.questions.map(q=>({correct:q.correct,type:isTF(q)?'tf':'mcq'}));
   const players={};
   Object.keys(hostGame.players||{}).forEach(pid=>{
-    players[pid]={name:hostGame.players[pid].name,email:hostGame.players[pid].email||'',score:hostGame.scores[pid]||0};
+    players[pid]={name:hostGame.players[pid].name,score:hostGame.scores[pid]||0};
   });
   const rows=buildDetailRows(hostGame.quiz.title,questions,players,hostGame.detail||{});
   downloadCSV('respostes-'+(hostGame.quiz.title||'quiz')+'.csv',rows);
@@ -1457,7 +1627,7 @@ function renderHistory(){
     const top=Object.values(r.players||{}).sort((a,b)=>(b.score||0)-(a.score||0))[0];
     return `<div class="qlist-row" style="cursor:default">
       <div style="flex:1">
-        <div style="font-family:'Fredoka';font-weight:600;font-size:19px">${esc(r.title||'Quiz')}</div>
+        <div style="font-family:'Fredoka';font-weight:600;font-size:19px">${esc(r.title||'Quiz')}${r.listName?(' · '+esc(r.listName)):''}</div>
         <div class="muted" style="font-size:14px">${dateStr} · ${np} alumnes · ${r.n||0} preguntes${top?(' · 🥇 '+esc(top.name)+' ('+(top.score||0)+')'):''}</div>
       </div>
       <button class="btn green sm" onclick="downloadHistoryCSV('${id}')">⬇ CSV</button>
@@ -1485,6 +1655,7 @@ let pQuiz=null;
 let pStartReceived=0;
 let pAnswered=false;
 let pStreak=0, pMaxStreak=0, pPrevRank=null, pLastResultIdx=-1;
+let pCurrentShuffleOrder=null;
 
 /* ── Sessió del jugador (per reconnectar després d'una recàrrega o tall de wifi) ── */
 function saveSession(){
@@ -1495,9 +1666,6 @@ function getSession(){ try{ return JSON.parse(sessionStorage.getItem('quizSessio
 
 function playerInit(){
   show('s-join');
-  if(!REQUIRE_CLASS_LIST){
-    document.getElementById('j-email-field').classList.add('hide');
-  }
   // prefill pin from hash like #1234
   const m=location.hash.match(/\d{4}/);
   if(m) document.getElementById('j-pin').value=m[0];
@@ -1508,7 +1676,7 @@ function playerInit(){
       if(!m2.exists()){ clearSession(); return; }
       db.ref('games/'+sess.pin+'/players/'+sess.id).once('value',p=>{
         if(!p.exists()){ clearSession(); return; }
-        me.pin=sess.pin; me.id=sess.id; me.name=sess.name; me.email=sess.email;
+        me.pin=sess.pin; me.id=sess.id; me.name=sess.name; me.email=sess.email||'';
         document.getElementById('pl-name').textContent='Hola, '+me.name+' 👋';
         listenAsPlayer();   // el listener d'estat ja portarà a la pantalla correcta
       });
@@ -1516,58 +1684,82 @@ function playerInit(){
   }
 }
 
+/* Barreja determinista basada en un string-seed (LCG simple) */
+function seededShuffle(arr, seed){
+  const a=[...arr];
+  let s=0;
+  for(let i=0;i<seed.length;i++) s=(s*31+seed.charCodeAt(i))>>>0;
+  for(let i=a.length-1;i>0;i--){
+    s=(s*1664525+1013904223)>>>0;
+    const j=s%(i+1);
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function normName(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function matchName(typed, names){
+  const t=normName(typed);
+  if(!t) return {status:'none'};
+  const exact=names.filter(n=>normName(n)===t);
+  if(exact.length>=1) return {status:'one', name:exact[0]};
+  const partial=names.filter(n=>{ const nn=normName(n); return nn.split(' ')[0]===t || nn.startsWith(t); });
+  if(partial.length===1) return {status:'one', name:partial[0]};
+  if(partial.length>1) return {status:'many', matches:partial};
+  return {status:'none'};
+}
+
 function playerJoin(){
   const pin=document.getElementById('j-pin').value.trim();
   const name=document.getElementById('j-name').value.trim();
-  const email=document.getElementById('j-email').value.trim().toLowerCase();
   const warn=document.getElementById('j-warn');
-  warn.style.display='none';
+  const choose=document.getElementById('j-choose');
+  warn.style.display='none'; choose.classList.add('hide'); choose.innerHTML='';
   if(!/^\d{4}$/.test(pin)){toast('El PIN ha de tenir 4 xifres');return;}
   if(!name){toast('Posa el teu nom');return;}
-  if(!REQUIRE_CLASS_LIST){ doJoin(pin,name,email,warn); return; }
-  // Validació amb llista (domini + roster de Firebase, amb CLASS_EMAILS de reserva)
-  if(SCHOOL_DOMAIN && !email.endsWith('@'+SCHOOL_DOMAIN)){
-    warn.style.display='block';warn.textContent='Fes servir el teu correu @'+SCHOOL_DOMAIN;return;
-  }
-  db.ref('roster').once('value',snap=>{
-    let list=snap.val();
-    let emails=[];
-    if(Array.isArray(list)&&list.length){
-      emails=list.map(s=>(typeof s==='string'?s:s.email||'').toLowerCase());
-    }else{
-      emails=CLASS_EMAILS.map(e=>e.toLowerCase());
-    }
-    if(!emails.includes(email)){
-      warn.style.display='block';
-      warn.textContent='Aquest correu no és a la llista de classe. Comprova que l\'has escrit bé.';
-      return;
-    }
-    doJoin(pin,name,email,warn);
-  });
-}
-function doJoin(pin,name,email,warn){
   db.ref('games/'+pin+'/meta').once('value',snap=>{
     if(!snap.exists()){warn.style.display='block';warn.textContent='No hi ha cap joc amb aquest PIN.';return;}
-    // avisa si ja hi ha un alumne amb el mateix nom (per no confondre el rànquing)
-    db.ref('games/'+pin+'/players').once('value',ps=>{
-      const players=ps.val()||{};
-      const norm=s=>String(s||'').trim().toLowerCase();
-      const dup=Object.values(players).some(p=>norm(p.name)===norm(name));
-      if(dup){
+    const meta=snap.val();
+    if(!meta.validate){ finalizeJoin(pin,name,warn); return; }
+    // validació contra la llista incrustada al joc
+    db.ref('games/'+pin+'/roster').once('value',rs=>{
+      const names=rs.val()||[];
+      const res=matchName(name,names);
+      if(res.status==='none'){
         warn.style.display='block';
-        warn.textContent='Ja hi ha un "'+name+'" a la sala. Afegeix el teu cognom o una inicial per diferenciar-te.';
-        return;
+        warn.textContent='Aquest nom no és a la llista. Comprova que l\'has escrit bé.';
+      }else if(res.status==='one'){
+        finalizeJoin(pin,res.name,warn);
+      }else{
+        // diversos coincideixen → demana quin és
+        choose.classList.remove('hide');
+        choose.innerHTML='<div class="muted" style="font-size:14px;margin-bottom:8px">Quin ets?</div>'+
+          res.matches.map(n=>`<button class="btn sm" style="margin:4px 6px 0 0" onclick="finalizeJoinName('${pin}','${esc(n).replace(/'/g,"\\'")}')">${esc(n)}</button>`).join('');
       }
-      me.pin=pin; me.name=name; me.email=email;
-      pStreak=0; pMaxStreak=0; pPrevRank=null; pLastResultIdx=-1;
-      const ref=db.ref('games/'+pin+'/players').push();
-      me.id=ref.key;
-      ref.set({name,email,score:0,joinedAt:Date.now()});
-      saveSession();
-      document.getElementById('pl-name').textContent='Hola, '+name+' 👋';
-      listenAsPlayer();
-      show('s-plobby');
     });
+  });
+}
+function finalizeJoinName(pin,name){
+  finalizeJoin(pin,name,document.getElementById('j-warn'));
+}
+function finalizeJoin(pin,name,warn){
+  db.ref('games/'+pin+'/players').once('value',ps=>{
+    const players=ps.val()||{};
+    const dup=Object.values(players).some(p=>normName(p.name)===normName(name));
+    if(dup){
+      warn.style.display='block';
+      warn.textContent='Ja hi ha un "'+name+'" a la sala. Si ets una persona diferent, afegeix el teu cognom o una inicial.';
+      return;
+    }
+    me.pin=pin; me.name=name; me.email='';
+    pStreak=0; pMaxStreak=0; pPrevRank=null; pLastResultIdx=-1;
+    const ref=db.ref('games/'+pin+'/players').push();
+    me.id=ref.key;
+    ref.set({name,score:0,joinedAt:Date.now()});
+    saveSession();
+    document.getElementById('pl-name').textContent='Hola, '+name+' 👋';
+    listenAsPlayer();
+    show('s-plobby');
   });
 }
 
@@ -1623,10 +1815,17 @@ function renderPlayerQuestion(st,idx,q){
   show('s-pquestion');
   const total=pQuiz.questions.length;
   document.getElementById('pq-count').textContent=(idx+1)+'/'+total;
+  document.getElementById('pq-double').classList.toggle('hide',!q.double);
   document.getElementById('pq-text').textContent=q.q;
   document.getElementById('pq-opts').className='opts'+(isTF(q)?' opts-tf':'');
-  document.getElementById('pq-opts').innerHTML=qOptions(q).map((o,i)=>
-    `<button class="opt ${qShapes(q)[i]}" onclick="playerAnswer(${idx},${i})">${iconFor(q,i)}<span>${esc(o)}</span></button>`).join('');
+  const opts=qOptions(q), nOpts=opts.length;
+  if(pQuiz.shuffle && !isTF(q)){
+    pCurrentShuffleOrder=seededShuffle([...Array(nOpts).keys()], (me.id||'')+idx);
+  }else{
+    pCurrentShuffleOrder=[...Array(nOpts).keys()];
+  }
+  document.getElementById('pq-opts').innerHTML=pCurrentShuffleOrder.map((origIdx,displayIdx)=>
+    `<button class="opt ${qShapes(q)[displayIdx]}" onclick="playerAnswer(${idx},${displayIdx})">${iconFor(q,displayIdx)}<span>${esc(opts[origIdx])}</span></button>`).join('');
   // local countdown (visual) — uses this question's time
   const t=q.time||20;
   let rem=t;
@@ -1639,15 +1838,16 @@ function renderPlayerQuestion(st,idx,q){
   },1000);
 }
 
-function playerAnswer(idx,choice){
+function playerAnswer(idx,displayChoice){
   if(pAnswered) return;
   pAnswered=true;
   clearInterval(countdownTimer);
   const elapsed=Date.now()-pStartReceived;
+  const choice=pCurrentShuffleOrder ? pCurrentShuffleOrder[displayChoice] : displayChoice;
   db.ref('games/'+me.pin+'/answers/'+idx+'/'+me.id).set({choice,elapsed});
   // visual feedback
   document.querySelectorAll('#pq-opts .opt').forEach((el,i)=>{
-    if(i===choice) el.classList.add('picked'); else el.classList.add('dim');
+    if(i===displayChoice) el.classList.add('picked'); else el.classList.add('dim');
   });
   setTimeout(()=>{
     document.getElementById('pw-emoji').textContent='⏳';
