@@ -203,6 +203,10 @@ textarea{resize:vertical;min-height:64px}
 .setup-note{background:#2a1f4d;border:1px solid #ffd23f44;border-radius:14px;padding:16px;font-size:14px;margin-top:18px}
 .setup-note code{background:#0008;padding:2px 6px;border-radius:5px;font-size:13px}
 .answered-count{font-family:'Fredoka';font-weight:700;font-size:clamp(28px,6vw,52px)}
+.double-badge{font-family:'Fredoka';font-weight:700;font-size:18px;color:#1c1500;
+  background:linear-gradient(135deg,#ffd23f,#ff7b54);padding:5px 16px;border-radius:999px;
+  animation:pulse-dbl .85s ease-in-out infinite alternate;white-space:nowrap}
+@keyframes pulse-dbl{from{transform:scale(1)}to{transform:scale(1.1)}}
 </style>
 </head>
 <body>
@@ -229,7 +233,7 @@ textarea{resize:vertical;min-height:64px}
         <div id="j-choose" class="hide" style="margin:6px 0 14px"></div>
         <button class="btn big" id="j-enter" onclick="playerJoin()">Entrar al joc</button>
       </div>
-    
+  
     </div>
   </div>
 </div>
@@ -258,6 +262,7 @@ textarea{resize:vertical;min-height:64px}
   <div class="wrap">
     <div class="qbar">
       <span class="qcount" id="pq-count">1/10</span>
+      <span id="pq-double" class="double-badge hide" style="margin-left:10px">×2 DOBLE!</span>
       <div style="flex:1"></div>
       <div class="timer" id="pq-timer"></div>
     </div>
@@ -380,6 +385,13 @@ textarea{resize:vertical;min-height:64px}
         <option value="60">60 segons</option>
       </select>
     </div>
+    <div class="field" style="max-width:480px;margin-top:4px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="ed-shuffle" style="width:20px;height:20px;accent-color:var(--accent);flex:none">
+        <span>🔀 Aleatoritzar l'ordre de les opcions per a cada alumne</span>
+      </label>
+      <p class="muted" style="font-size:13px;margin-top:5px;margin-left:30px">Cada jugador veu les opcions en un ordre diferent, dificultant còpies entre companys.</p>
+    </div>
     <div id="ed-questions"></div>
     <button class="btn ghost" style="margin:8px 0 30px" onclick="addQuestion()">+ Afegir pregunta</button>
   </div>
@@ -473,6 +485,7 @@ textarea{resize:vertical;min-height:64px}
     <div class="progress-track"><div class="progress-fill" id="hq-progress"></div></div>
     <div class="qbar">
       <span class="qcount" id="hq-count">1/10</span>
+      <span id="hq-double" class="double-badge hide" style="margin-left:10px">×2 DOBLE!</span>
       <div style="flex:1"></div>
       <div class="row" style="gap:8px;font-family:'Fredoka';font-weight:600">
         <span id="hq-answered">0</span><span class="muted">han respost</span>
@@ -496,8 +509,9 @@ textarea{resize:vertical;min-height:64px}
 <div id="s-hresults" class="screen">
   <div class="wrap">
     <div class="progress-track"><div class="progress-fill" id="hr-progress"></div></div>
-    <h2 id="hr-text" style="font-size:clamp(22px,3vw,34px);text-align:center;margin-bottom:6px"></h2>
+    <h2 id="hr-text" style="font-size:clamp(22px,3vw,34px);text-align:center;margin-bottom:4px"></h2>
     <div class="qimg-wrap qimg-sm" id="hr-img"></div>
+    <div style="text-align:center;margin-bottom:8px"><span id="hr-double" class="double-badge hide">×2 DOBLE!</span></div>
     <div class="bars" id="hr-bars"></div>
     <div id="hr-expl" class="expl hide"></div>
     <h3 style="text-align:center;font-size:22px;margin:10px 0 14px">🏅 Classificació</h3>
@@ -799,9 +813,10 @@ function renderQuizList(){
     return `<div class="qlist-row" style="cursor:default">
       <div style="flex:1">
         <div style="font-family:'Fredoka';font-weight:600;font-size:20px">${esc(q.title||'Sense títol')}</div>
-        <div class="muted" style="font-size:14px">${n} preguntes · ${q.time||20}s per pregunta</div>
+        <div class="muted" style="font-size:14px">${n} preguntes · ${q.time||20}s per pregunta${q.shuffle?' · 🔀':''}</div>
       </div>
       <button class="btn green sm" onclick="openLaunchPicker('${id}')">▶ Jugar</button>
+      <button class="btn ghost sm" onclick="duplicateQuiz('${id}')">⧉ Duplicar</button>
       <button class="btn ghost sm" onclick="editQuiz('${id}')">✏️</button>
       <button class="btn danger sm" onclick="deleteQuiz('${id}')">🗑</button>
     </div>`;
@@ -825,6 +840,7 @@ function openEditor(){
   document.getElementById('ed-title').value=editing.quiz.title||'';
   const def=editing.quiz.time||20;
   document.getElementById('ed-time').value=[10,20,30,40,60].includes(def)?def:20;
+  document.getElementById('ed-shuffle').checked=!!editing.quiz.shuffle;
   renderQuestionsEditor();
 }
 function renderQuestionsEditor(){
@@ -853,10 +869,15 @@ function renderQuestionsEditor(){
         </div>`).join('')}
       <div class="muted" style="font-size:13px;margin-bottom:10px">El cercle ✓ marca la resposta correcta.</div>`;
     }
+    const nQ=editing.quiz.questions.length;
     return `
     <div class="qedit">
       <div class="qhead">
-        <span class="qn" style="font-family:'Fredoka';font-weight:700;color:var(--accent)">Pregunta ${i+1}</span>
+        <div class="row" style="gap:6px;align-items:center">
+          <span class="qn" style="font-family:'Fredoka';font-weight:700;color:var(--accent)">Pregunta ${i+1}</span>
+          <button class="btn ghost sm" style="padding:5px 10px;font-size:15px;line-height:1" onclick="moveQuestion(${i},-1)" ${i===0?'disabled':''} title="Moure amunt">↑</button>
+          <button class="btn ghost sm" style="padding:5px 10px;font-size:15px;line-height:1" onclick="moveQuestion(${i},1)" ${i===nQ-1?'disabled':''} title="Moure avall">↓</button>
+        </div>
         <div class="row" style="gap:10px;flex-wrap:wrap">
           <select onchange="updType(${i},this.value)" style="width:auto;padding:8px 10px;font-size:14px">
             <option value="mcq" ${!tf?'selected':''}>Opció múltiple</option>
@@ -866,6 +887,10 @@ function renderQuestionsEditor(){
             <select onchange="updTime(${i},this.value)" style="width:auto;padding:8px 10px;font-size:14px">
               ${TIMES.map(t=>`<option value="${t}" ${qt===t?'selected':''}>${t}s</option>`).join('')}
             </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:'Fredoka';font-weight:600;font-size:14px;color:var(--accent);padding:6px 12px;border:2px solid ${q.double?'var(--accent)':'var(--line)'};border-radius:10px;background:${q.double?'rgba(255,210,63,.12)':'transparent'}" title="Aquesta pregunta val el doble de punts">
+            <input type="checkbox" ${q.double?'checked':''} onchange="upd(${i},'double',this.checked);renderQuestionsEditor()" style="width:18px;height:18px;accent-color:var(--accent);flex:none">
+            ×2 Doble
           </label>
           <button class="btn danger sm" onclick="delQuestion(${i})">Eliminar</button>
         </div>
@@ -911,6 +936,13 @@ function delQuestion(i){
   editing.quiz.questions.splice(i,1);
   renderQuestionsEditor();
 }
+function moveQuestion(i,dir){
+  const qs=editing.quiz.questions;
+  const j=i+dir;
+  if(j<0||j>=qs.length) return;
+  [qs[i],qs[j]]=[qs[j],qs[i]];
+  renderQuestionsEditor();
+}
 function saveQuiz(){
   const title=document.getElementById('ed-title').value.trim();
   const time=Math.max(5,Math.min(120,parseInt(document.getElementById('ed-time').value)||20));
@@ -927,7 +959,7 @@ function saveQuiz(){
     if(q.explanation==null) q.explanation='';
     q.image=(q.image||'').trim();
   }
-  editing.quiz.title=title; editing.quiz.time=time;
+  editing.quiz.title=title; editing.quiz.time=time; editing.quiz.shuffle=document.getElementById('ed-shuffle').checked;
   if(editing.id){ db.ref('quizzes/'+editing.id).set(editing.quiz); }
   else { db.ref('quizzes').push().set(editing.quiz); }
   toast('Quiz desat ✓');
@@ -936,6 +968,12 @@ function saveQuiz(){
 function deleteQuiz(id){
   if(!confirm('Eliminar aquest quiz?')) return;
   db.ref('quizzes/'+id).remove();
+}
+function duplicateQuiz(id){
+  const q=JSON.parse(JSON.stringify(quizzes[id]));
+  q.title=(q.title||'Quiz')+' (còpia)';
+  db.ref('quizzes').push().set(q);
+  toast('Quiz duplicat ✓');
 }
 function backToQuizzes(){ editing=null; show('s-hquizzes'); }
 
@@ -1213,10 +1251,10 @@ function doLaunch(quiz,listName,students){
   const validate=Array.isArray(students)&&students.length>0;
   hostGame={pin, quiz, scores:{}, players:{}, closedQ:-1, detail:{}, viewIdx:0, listName:listName||''};
   // Strip correct answers + explanation from the version players read; keep per-question time
-  const publicQuestions=quiz.questions.map(q=>({q:q.q,options:qOptions(q),time:q.time||quiz.time||20,type:isTF(q)?'tf':'mcq',image:(q.image||'')}));
+  const publicQuestions=quiz.questions.map(q=>({q:q.q,options:qOptions(q),time:q.time||quiz.time||20,type:isTF(q)?'tf':'mcq',double:!!q.double,image:(q.image||'')}));
   const node={
     meta:{title:quiz.title,total:quiz.questions.length,createdAt:Date.now(),validate,listName:listName||''},
-    quiz:{questions:publicQuestions},
+    quiz:{questions:publicQuestions,shuffle:!!quiz.shuffle},
     state:{phase:'lobby',currentQ:-1,qStartAt:0}
   };
   if(validate) node.roster=students;   // noms permesos (visible per validar al client)
@@ -1280,6 +1318,7 @@ function renderHostQuestion(idx){
   const total=hostGame.quiz.questions.length;
   const time=q.time||hostGame.quiz.time||20;
   document.getElementById('hq-count').textContent=(idx+1)+'/'+total;
+  document.getElementById('hq-double').classList.toggle('hide',!q.double);
   document.getElementById('hq-text').textContent=q.q;
   document.getElementById('hq-img').innerHTML=imgHTML(q);
   document.getElementById('hq-opts').className='opts'+(isTF(q)?' opts-tf':'');
@@ -1356,6 +1395,7 @@ function endQuestion(){
       if(correct){
         const frac=Math.min(a.elapsed||0,time*1000)/(time*1000);
         pts=Math.round(1000*(1-frac/2));
+        if(hostGame.quiz.questions[idx].double) pts*=2;
       }
       hostGame.scores[pid]=(hostGame.scores[pid]||0)+pts;
       detail[pid]={choice:a.choice,correct,points:pts};
@@ -1380,6 +1420,7 @@ function renderHostResults(idx,counts,correctIdx){
   setHostProgress('hr-progress',idx,total);
   document.getElementById('hr-text').textContent=q.q;
   document.getElementById('hr-img').innerHTML=imgHTML(q);
+  document.getElementById('hr-double').classList.toggle('hide',!q.double);
   const max=Math.max(1,...counts);
   const opts=qOptions(q), shapes=qShapes(q), nOpt=qCount(q);
   const barsEl=document.getElementById('hr-bars');
@@ -1630,6 +1671,7 @@ let pQuiz=null;
 let pStartReceived=0;
 let pAnswered=false;
 let pStreak=0, pMaxStreak=0, pPrevRank=null, pLastResultIdx=-1;
+let pCurrentShuffleOrder=null;
 
 /* ── Sessió del jugador (per reconnectar després d'una recàrrega o tall de wifi) ── */
 function saveSession(){
@@ -1656,6 +1698,19 @@ function playerInit(){
       });
     });
   }
+}
+
+/* Barreja determinista basada en un string-seed (LCG simple) */
+function seededShuffle(arr, seed){
+  const a=[...arr];
+  let s=0;
+  for(let i=0;i<seed.length;i++) s=(s*31+seed.charCodeAt(i))>>>0;
+  for(let i=a.length-1;i>0;i--){
+    s=(s*1664525+1013904223)>>>0;
+    const j=s%(i+1);
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
 }
 
 function normName(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
@@ -1776,11 +1831,18 @@ function renderPlayerQuestion(st,idx,q){
   show('s-pquestion');
   const total=pQuiz.questions.length;
   document.getElementById('pq-count').textContent=(idx+1)+'/'+total;
+  document.getElementById('pq-double').classList.toggle('hide',!q.double);
   document.getElementById('pq-text').textContent=q.q;
   document.getElementById('pq-img').innerHTML=imgHTML(q);
   document.getElementById('pq-opts').className='opts'+(isTF(q)?' opts-tf':'');
-  document.getElementById('pq-opts').innerHTML=qOptions(q).map((o,i)=>
-    `<button class="opt ${qShapes(q)[i]}" onclick="playerAnswer(${idx},${i})">${iconFor(q,i)}<span>${esc(o)}</span></button>`).join('');
+  const opts=qOptions(q), nOpts=opts.length;
+  if(pQuiz.shuffle && !isTF(q)){
+    pCurrentShuffleOrder=seededShuffle([...Array(nOpts).keys()], (me.id||'')+idx);
+  }else{
+    pCurrentShuffleOrder=[...Array(nOpts).keys()];
+  }
+  document.getElementById('pq-opts').innerHTML=pCurrentShuffleOrder.map((origIdx,displayIdx)=>
+    `<button class="opt ${qShapes(q)[displayIdx]}" onclick="playerAnswer(${idx},${displayIdx})">${iconFor(q,displayIdx)}<span>${esc(opts[origIdx])}</span></button>`).join('');
   // local countdown (visual) — uses this question's time
   const t=q.time||20;
   let rem=t;
@@ -1793,15 +1855,16 @@ function renderPlayerQuestion(st,idx,q){
   },1000);
 }
 
-function playerAnswer(idx,choice){
+function playerAnswer(idx,displayChoice){
   if(pAnswered) return;
   pAnswered=true;
   clearInterval(countdownTimer);
   const elapsed=Date.now()-pStartReceived;
+  const choice=pCurrentShuffleOrder ? pCurrentShuffleOrder[displayChoice] : displayChoice;
   db.ref('games/'+me.pin+'/answers/'+idx+'/'+me.id).set({choice,elapsed});
   // visual feedback
   document.querySelectorAll('#pq-opts .opt').forEach((el,i)=>{
-    if(i===choice) el.classList.add('picked'); else el.classList.add('dim');
+    if(i===displayChoice) el.classList.add('picked'); else el.classList.add('dim');
   });
   setTimeout(()=>{
     document.getElementById('pw-emoji').textContent='⏳';
