@@ -269,6 +269,7 @@ textarea{resize:vertical;min-height:64px}
     <div class="qtext" id="pq-text"></div>
     <div class="qimg-wrap" id="pq-img"></div>
     <div class="opts" id="pq-opts"></div>
+    <div id="pq-extra" style="text-align:center;padding:6px 0"></div>
   </div>
 </div>
 
@@ -641,6 +642,8 @@ const ICON_FALSE='<svg class="ic" viewBox="0 0 32 32"><path d="M8 8l16 16M24 8L8
 
 /* ── Helpers per tipus de pregunta (mcq = opció múltiple, tf = True/False) ── */
 function isTF(q){ return q && q.type==='tf'; }
+function isFill(q){ return q && q.type==='fill'; }
+function isMulti(q){ return q && q.type==='multi'; }
 function qOptions(q){ return isTF(q)?['True','False']:(q.options||['','','','']); }
 function qShapes(q){ return isTF(q)?['green','red']:SHAPES; }
 function qCount(q){ return isTF(q)?2:4; }
@@ -848,9 +851,11 @@ function renderQuestionsEditor(){
   const TIMES=[10,20,30,40,60];
   c.innerHTML=editing.quiz.questions.map((q,i)=>{
     const qt=q.time||editing.quiz.time||20;
-    const tf=isTF(q);
-    let body;
-    if(tf){
+    const base=q.type||'mcq';
+    const dropVal=base+(q.image?'-img':'');
+    let body,placeholder;
+    if(isTF(q)){
+      placeholder='Escriu la frase (True o False)...';
       body=`
       ${[0,1].map(o=>`
         <div class="optedit">
@@ -859,17 +864,43 @@ function renderQuestionsEditor(){
           <input type="radio" name="correct-${i}" ${q.correct===o?'checked':''} onclick="upd(${i},'correct',${o})" title="Resposta correcta">
         </div>`).join('')}
       <div class="muted" style="font-size:13px;margin-bottom:10px">Marca si la frase és <b>True</b> o <b>False</b>.</div>`;
-    }else{
+    }else if(isFill(q)){
+      placeholder='Escriu la frase incompleta (usa ___ per al buit)...';
+      body=`
+      <div class="field">
+        <label>Respostes acceptades <span class="muted">(separades per / )</span></label>
+        <input type="text" value="${esc((q.accepted||[]).join(' / '))}"
+          placeholder="Ex: were / was / 'd have been"
+          oninput="updAccepted(${i},this.value)">
+        <div class="muted" style="font-size:13px;margin-top:5px">La validació ignora majúscules i espais extra.</div>
+      </div>`;
+    }else if(isMulti(q)){
+      placeholder='Escriu la pregunta (pot tenir diverses respostes correctes)...';
       body=`
       ${[0,1,2,3].map(o=>`
         <div class="optedit">
           <span class="dot ${SHAPES[o]}"></span>
-          <input type="text" value="${esc(q.options[o]||'')}" placeholder="Opció ${o+1}" oninput="updOpt(${i},${o},this.value)">
+          <input type="text" value="${esc((q.options||[])[o]||'')}" placeholder="Opció ${o+1}" oninput="updOpt(${i},${o},this.value)">
+          <input type="checkbox" ${(q.correctSet||[]).includes(o)?'checked':''} onchange="updCorrectSet(${i},${o},this.checked)" title="Opció correcta" style="width:20px;height:20px;flex:none;accent-color:var(--good)">
+        </div>`).join('')}
+      <div class="muted" style="font-size:13px;margin-bottom:10px">La casella ✓ marca les opcions correctes (pot haver-n'hi més d'una).</div>`;
+    }else{
+      placeholder='Escriu la pregunta...';
+      body=`
+      ${[0,1,2,3].map(o=>`
+        <div class="optedit">
+          <span class="dot ${SHAPES[o]}"></span>
+          <input type="text" value="${esc((q.options||[])[o]||'')}" placeholder="Opció ${o+1}" oninput="updOpt(${i},${o},this.value)">
           <input type="radio" name="correct-${i}" ${q.correct===o?'checked':''} onclick="upd(${i},'correct',${o})" title="Resposta correcta">
         </div>`).join('')}
       <div class="muted" style="font-size:13px;margin-bottom:10px">El cercle ✓ marca la resposta correcta.</div>`;
     }
     const nQ=editing.quiz.questions.length;
+    const imgField=dropVal.endsWith('-img')?`
+      <div class="field">
+        <label>URL de la imatge</label>
+        <input type="text" value="${esc(q.image||'')}" placeholder="https://… (imatge .jpg/.png)" oninput="upd(${i},'image',this.value)">
+      </div>`:'';
     return `
     <div class="qedit">
       <div class="qhead">
@@ -880,8 +911,14 @@ function renderQuestionsEditor(){
         </div>
         <div class="row" style="gap:10px;flex-wrap:wrap">
           <select onchange="updType(${i},this.value)" style="width:auto;padding:8px 10px;font-size:14px">
-            <option value="mcq" ${!tf?'selected':''}>Opció múltiple</option>
-            <option value="tf" ${tf?'selected':''}>True / False</option>
+            <option value="mcq"       ${dropVal==='mcq'?'selected':''}>Opció múltiple</option>
+            <option value="mcq-img"   ${dropVal==='mcq-img'?'selected':''}>Opció múltiple + imatge</option>
+            <option value="tf"        ${dropVal==='tf'?'selected':''}>Vertader / Fals</option>
+            <option value="tf-img"    ${dropVal==='tf-img'?'selected':''}>Vertader / Fals + imatge</option>
+            <option value="fill"      ${dropVal==='fill'?'selected':''}>Escriure la resposta</option>
+            <option value="fill-img"  ${dropVal==='fill-img'?'selected':''}>Escriure la resposta + imatge</option>
+            <option value="multi"     ${dropVal==='multi'?'selected':''}>Resposta múltiple</option>
+            <option value="multi-img" ${dropVal==='multi-img'?'selected':''}>Resposta múltiple + imatge</option>
           </select>
           <label class="muted" style="font-size:13px;display:flex;align-items:center;gap:6px">⏱
             <select onchange="updTime(${i},this.value)" style="width:auto;padding:8px 10px;font-size:14px">
@@ -896,13 +933,10 @@ function renderQuestionsEditor(){
         </div>
       </div>
       <div class="field">
-        <textarea oninput="upd(${i},'q',this.value)" placeholder="${tf?'Escriu la frase (True o False)...':'Escriu la pregunta...'}">${esc(q.q)}</textarea>
+        <textarea oninput="upd(${i},'q',this.value)" placeholder="${placeholder}">${esc(q.q)}</textarea>
       </div>
       ${body}
-      <div class="field">
-        <label>URL de la imatge (opcional)</label>
-        <input type="text" value="${esc(q.image||'')}" placeholder="https://… (enllaç a una imatge .jpg/.png)" oninput="upd(${i},'image',this.value)">
-      </div>
+      ${imgField}
       <div class="field" style="margin-bottom:0">
         <label>Explicació (opcional · es mostra a la pantalla de resultats)</label>
         <textarea oninput="upd(${i},'explanation',this.value)" placeholder="Per què és correcta aquesta resposta...">${esc(q.explanation||'')}</textarea>
@@ -911,18 +945,34 @@ function renderQuestionsEditor(){
   }).join('');
 }
 function upd(i,k,v){ editing.quiz.questions[i][k]=v; }
-function updOpt(i,o,v){ editing.quiz.questions[i].options[o]=v; }
+function updOpt(i,o,v){ if(!editing.quiz.questions[i].options) editing.quiz.questions[i].options=['','','','']; editing.quiz.questions[i].options[o]=v; }
 function updTime(i,v){ editing.quiz.questions[i].time=parseInt(v)||20; }
+function updAccepted(i,v){ editing.quiz.questions[i].accepted=v.split(/[\/,]/).map(s=>s.trim()).filter(Boolean); }
+function updCorrectSet(i,o,checked){
+  if(!editing.quiz.questions[i].correctSet) editing.quiz.questions[i].correctSet=[];
+  if(checked){ if(!editing.quiz.questions[i].correctSet.includes(o)) editing.quiz.questions[i].correctSet.push(o); }
+  else{ editing.quiz.questions[i].correctSet=editing.quiz.questions[i].correctSet.filter(x=>x!==o); }
+}
 function updType(i,v){
+  const hasImg=v.endsWith('-img'), base=hasImg?v.slice(0,-4):v;
   const q=editing.quiz.questions[i];
-  if(v==='tf'){
-    q.type='tf'; q.options=['True','False']; if(q.correct>1) q.correct=0;
-  }else{
-    delete q.type;
-    if(!Array.isArray(q.options)) q.options=['','','',''];
+  if(base==='tf'){
+    q.type='tf'; q.options=['True','False']; if((q.correct||0)>1) q.correct=0;
+    delete q.accepted; delete q.correctSet;
+  }else if(base==='fill'){
+    q.type='fill'; if(!q.accepted) q.accepted=[]; delete q.correctSet;
+  }else if(base==='multi'){
+    q.type='multi';
+    if(!Array.isArray(q.options)||q.options.length<4) q.options=['','','',''];
     while(q.options.length<4) q.options.push('');
-    q.options=q.options.slice(0,4);
+    if(!q.correctSet) q.correctSet=[]; delete q.accepted;
+  }else{
+    q.type='mcq';
+    if(!Array.isArray(q.options)||q.options.length<4) q.options=['','','',''];
+    while(q.options.length<4) q.options.push('');
+    delete q.correctSet; delete q.accepted;
   }
+  if(!hasImg) q.image='';
   renderQuestionsEditor();
 }
 function addQuestion(){
@@ -958,6 +1008,11 @@ function saveQuiz(){
     if(!q.time) q.time=time;            // fallback al temps per defecte
     if(q.explanation==null) q.explanation='';
     q.image=(q.image||'').trim();
+    if(isFill(q)){
+      if(!q.accepted||!q.accepted.length){toast('La pregunta '+(editing.quiz.questions.indexOf(q)+1)+' necessita almenys una resposta acceptada');return;}
+    }else if(isMulti(q)){
+      if(!q.correctSet||!q.correctSet.length){toast('La pregunta '+(editing.quiz.questions.indexOf(q)+1)+' (resposta múltiple) necessita almenys una opció correcta');return;}
+    }
   }
   editing.quiz.title=title; editing.quiz.time=time; editing.quiz.shuffle=document.getElementById('ed-shuffle').checked;
   if(editing.id){ db.ref('quizzes/'+editing.id).set(editing.quiz); }
@@ -1053,11 +1108,22 @@ function downloadQuizTemplate(){
   downloadCSV('plantilla-quiz.csv',[
     ['pregunta','opcioA','opcioB','opcioC','opcioD','correcta','segons','explicacio','tipus','imatge'],
     ['If I ____ rich, I would travel the world.','was','were','am','be','B','20','Second conditional: If I were...','mcq',''],
-    ['My phone died — I need to ____ it.','turn down','charge up','look after','give up','B','30',"'Charge up' = carregar la bateria",'mcq',''],
-    ['London is the capital of England.','','','','','True','20','True. (per a True/False deixa opcioA-D buides i posa tf a tipus)','tf',''],
-    ['What animal is this?','Lion','Tiger','Leopard','Cheetah','D','20','Un guepard, el més ràpid.','mcq','https://exemple.com/imatge.jpg']
+    ['She said she ___ tired.','"is"','"was"','"has been"','"were"','B','20','Reported speech: present → past.','mcq',''],
+    ['London is the capital of England.','','','','','True','20','True.','tf',''],
+    ['___ is the capital of England. (escriure)','London / london','','','','','20','','fill',''],
+    ['Which are irregular verbs?','go','walk','sing','talk','A,C','20','Go i sing són irregulars.','multi',''],
+    ['What animal is this?','Lion','Tiger','Leopard','Cheetah','D','20','Un guepard.','mcq','https://exemple.com/imatge.jpg']
   ]);
 }
+
+function parseMultiCorrect(str){
+  return str.split(/[,;]/).map(s=>{
+    const v=s.trim().toUpperCase();
+    const m={A:0,B:1,C:2,D:3,'1':0,'2':1,'3':2,'4':3};
+    return m[v]!==undefined?m[v]:-1;
+  }).filter(x=>x>=0);
+}
+
 function importQuizCSVPrompt(){
   const inp=document.createElement('input');inp.type='file';inp.accept='.csv,text/csv';
   inp.onchange=e=>{
@@ -1067,29 +1133,31 @@ function importQuizCSVPrompt(){
       try{
         const rows=parseCSV(rd.result);
         if(rows.length<2) throw 0;
-        // detecta i salta la capçalera si la primera cel·la diu "pregunta"
         let start=0;
         if(String(rows[0][0]||'').trim().toLowerCase().startsWith('pregunta')) start=1;
         const questions=[];
         for(let i=start;i<rows.length;i++){
           const r=rows[i];
           if(!r[0]||!r[0].trim()) continue;
-          const tf=isTfMarker(r[8]);
+          const tipusRaw=(r[8]||'').trim().toLowerCase();
           const image=(r[9]||'').trim();
-          if(tf){
-            questions.push({
-              q:(r[0]||'').trim(), type:'tf', options:['True','False'],
-              correct:(letterToIndex(r[5])>1?0:letterToIndex(r[5])),
-              time:snapTime(r[6]), explanation:(r[7]||'').trim(), image
-            });
+          const time=snapTime(r[6]);
+          const explanation=(r[7]||'').trim();
+          const q=(r[0]||'').trim();
+          if(tipusRaw.startsWith('fill')){
+            const accepted=(r[1]||'').split(/[\/,]/).map(s=>s.trim()).filter(Boolean);
+            questions.push({q, type:'fill', accepted, time, explanation, image});
+          }else if(tipusRaw.startsWith('multi')){
+            const options=[(r[1]||'').trim(),(r[2]||'').trim(),(r[3]||'').trim(),(r[4]||'').trim()];
+            const correctSet=parseMultiCorrect(r[5]||'');
+            questions.push({q, type:'multi', options, correctSet, time, explanation, image});
+          }else if(isTfMarker(tipusRaw)){
+            questions.push({q, type:'tf', options:['True','False'],
+              correct:(letterToIndex(r[5])>1?0:letterToIndex(r[5])), time, explanation, image});
           }else{
-            questions.push({
-              q:(r[0]||'').trim(),
+            questions.push({q, type:'mcq',
               options:[(r[1]||'').trim(),(r[2]||'').trim(),(r[3]||'').trim(),(r[4]||'').trim()],
-              correct:letterToIndex(r[5]),
-              time:snapTime(r[6]),
-              explanation:(r[7]||'').trim(), image
-            });
+              correct:letterToIndex(r[5]), time, explanation, image});
           }
         }
         if(!questions.length) throw 0;
@@ -1251,7 +1319,12 @@ function doLaunch(quiz,listName,students){
   const validate=Array.isArray(students)&&students.length>0;
   hostGame={pin, quiz, scores:{}, players:{}, closedQ:-1, detail:{}, viewIdx:0, listName:listName||''};
   // Strip correct answers + explanation from the version players read; keep per-question time
-  const publicQuestions=quiz.questions.map(q=>({q:q.q,options:qOptions(q),time:q.time||quiz.time||20,type:isTF(q)?'tf':'mcq',double:!!q.double,image:(q.image||'')}));
+  const publicQuestions=quiz.questions.map(q=>{
+    const base={q:q.q,type:q.type||'mcq',time:q.time||quiz.time||20,double:!!q.double,image:(q.image||'')};
+    if(isFill(q)) return base;               // fill: no options, no correct
+    if(isMulti(q)) return {...base,options:(q.options||[])}; // multi: options, no correctSet
+    return {...base,options:qOptions(q)};     // mcq/tf: options (correct stripped)
+  });
   const node={
     meta:{title:quiz.title,total:quiz.questions.length,createdAt:Date.now(),validate,listName:listName||''},
     quiz:{questions:publicQuestions,shuffle:!!quiz.shuffle},
@@ -1321,9 +1394,18 @@ function renderHostQuestion(idx){
   document.getElementById('hq-double').classList.toggle('hide',!q.double);
   document.getElementById('hq-text').textContent=q.q;
   document.getElementById('hq-img').innerHTML=imgHTML(q);
-  document.getElementById('hq-opts').className='opts'+(isTF(q)?' opts-tf':'');
-  document.getElementById('hq-opts').innerHTML=qOptions(q).map((o,i)=>
-    `<div class="opt ${qShapes(q)[i]}">${iconFor(q,i)}<span>${esc(o)}</span></div>`).join('');
+  if(isFill(q)){
+    document.getElementById('hq-opts').className='';
+    document.getElementById('hq-opts').innerHTML='<p class="muted" style="text-align:center;font-size:clamp(18px,2.5vw,26px);padding:28px 0">✏️ Els alumnes estan escrivint la seva resposta…</p>';
+  }else if(isMulti(q)){
+    document.getElementById('hq-opts').className='opts';
+    document.getElementById('hq-opts').innerHTML=(q.options||[]).map((o,i)=>
+      `<div class="opt ${SHAPES[i]}">${ICONS[SHAPES[i]]}<span>${esc(o)}</span></div>`).join('');
+  }else{
+    document.getElementById('hq-opts').className='opts'+(isTF(q)?' opts-tf':'');
+    document.getElementById('hq-opts').innerHTML=qOptions(q).map((o,i)=>
+      `<div class="opt ${qShapes(q)[i]}">${iconFor(q,i)}<span>${esc(o)}</span></div>`).join('');
+  }
   document.getElementById('hq-answered').textContent='0';
   setHostProgress('hq-progress',idx,total);
   hostGame.paused=false;
@@ -1380,25 +1462,38 @@ function endQuestion(){
   hostGame.closedQ=idx;
   clearInterval(countdownTimer);
   const time=hostGame.quiz.questions[idx].time||hostGame.quiz.time||20;
-  const correctIdx=hostGame.quiz.questions[idx].correct;
+  const q=hostGame.quiz.questions[idx];
   db.ref('games/'+hostGame.pin+'/answers/'+idx).off();
   db.ref('games/'+hostGame.pin+'/answers/'+idx).once('value',snap=>{
     const ans=snap.val()||{};
     const counts=[0,0,0,0];
     const updates={};
-    const detail={};   // pid -> {choice,correct,points}
+    const detail={};
     Object.keys(ans).forEach(pid=>{
       const a=ans[pid];
-      if(typeof a.choice==='number' && a.choice>=0) counts[a.choice]++;
-      const correct=a.choice===correctIdx;
-      let pts=0;
+      let correct=false, pts=0;
+      if(isFill(q)){
+        const accepted=(q.accepted||[]).map(s=>normName(s)).filter(Boolean);
+        correct=accepted.length>0 && accepted.includes(normName(a.answer||''));
+        detail[pid]={answer:(a.answer||''),correct,points:0};
+      }else if(isMulti(q)){
+        const chosen=Array.isArray(a.choice)?[...a.choice].sort((x,y)=>x-y):[];
+        const expected=[...(q.correctSet||[])].sort((x,y)=>x-y);
+        correct=expected.length>0 && JSON.stringify(chosen)===JSON.stringify(expected);
+        chosen.forEach(c=>{ if(c>=0&&c<4) counts[c]++; });
+        detail[pid]={choice:a.choice||[],correct,points:0};
+      }else{
+        if(typeof a.choice==='number'&&a.choice>=0) counts[a.choice]++;
+        correct=a.choice===q.correct;
+        detail[pid]={choice:a.choice,correct,points:0};
+      }
       if(correct){
         const frac=Math.min(a.elapsed||0,time*1000)/(time*1000);
         pts=Math.round(1000*(1-frac/2));
-        if(hostGame.quiz.questions[idx].double) pts*=2;
+        if(q.double) pts*=2;
       }
+      detail[pid].points=pts;
       hostGame.scores[pid]=(hostGame.scores[pid]||0)+pts;
-      detail[pid]={choice:a.choice,correct,points:pts};
       updates['games/'+hostGame.pin+'/answers/'+idx+'/'+pid+'/correct']=correct;
       updates['games/'+hostGame.pin+'/answers/'+idx+'/'+pid+'/points']=pts;
       updates['games/'+hostGame.pin+'/players/'+pid+'/score']=hostGame.scores[pid];
@@ -1421,30 +1516,46 @@ function renderHostResults(idx,counts,correctIdx){
   document.getElementById('hr-text').textContent=q.q;
   document.getElementById('hr-img').innerHTML=imgHTML(q);
   document.getElementById('hr-double').classList.toggle('hide',!q.double);
-  const max=Math.max(1,...counts);
-  const opts=qOptions(q), shapes=qShapes(q), nOpt=qCount(q);
   const barsEl=document.getElementById('hr-bars');
-  barsEl.style.gridTemplateColumns='repeat('+nOpt+',1fr)';
-  barsEl.style.maxWidth=nOpt===2?'460px':'';
-  barsEl.style.marginLeft='auto'; barsEl.style.marginRight='auto';
-  barsEl.innerHTML=counts.slice(0,nOpt).map((n,i)=>{
-    const h=Math.round((n/max)*100);
-    const win=i===correctIdx;
-    return `<div class="barcol">
-      <div class="bar ${shapes[i]}" style="height:${Math.max(6,h)}%">${n>0?n:''}</div>
-      <div class="barlabel ${win?'win':''}">${iconFor(q,i)}<span style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(opts[i])}</span></div>
-    </div>`;
-  }).join('');
-  renderLeaderboard('hr-lb',6);
-  const explEl=document.getElementById('hr-expl');
   const expl=(q.explanation||'').trim();
-  if(expl){
-    const correctText=esc(opts[correctIdx]);
-    explEl.innerHTML='<b>✓ '+correctText+'</b> &nbsp;·&nbsp; '+esc(expl);
-    explEl.classList.remove('hide');
+  const explEl=document.getElementById('hr-expl');
+  if(isFill(q)){
+    // llista de respostes escrites en lloc de barres
+    barsEl.style.height=''; barsEl.style.gridTemplateColumns=''; barsEl.style.maxWidth=''; barsEl.style.margin='';
+    const detail=hostGame.detail[idx]||{}, players=hostGame.players||{};
+    const pids=Object.keys(players).sort((a,b)=>(detail[b]?detail[b].points:0)-(detail[a]?detail[a].points:0));
+    barsEl.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+pids.map(pid=>{
+      const a=detail[pid]; const nm=esc(players[pid]?players[pid].name:'?');
+      if(!a||!a.answer) return `<div class="lb-row" style="padding:10px 16px"><span class="lb-name">${nm}</span><span class="muted">— sense resposta</span></div>`;
+      const col=a.correct?'var(--good)':'var(--bad)';
+      return `<div class="lb-row" style="padding:10px 16px"><span class="lb-name">${nm}</span><span style="color:${col};font-family:'Fredoka';font-weight:700">${a.correct?'✓ ':'✗ '}${esc(a.answer)}</span></div>`;
+    }).join('')+'</div>';
+    if(expl){ explEl.innerHTML='<b>Resposta esperada:</b> '+esc((q.accepted||[]).join(' / '))+' &nbsp;·&nbsp; '+esc(expl); explEl.classList.remove('hide'); }
+    else if(q.accepted&&q.accepted.length){ explEl.innerHTML='<b>Resposta esperada:</b> '+esc(q.accepted.join(' / ')); explEl.classList.remove('hide'); }
+    else explEl.classList.add('hide');
   }else{
-    explEl.classList.add('hide');
+    const max=Math.max(1,...counts);
+    const opts=isMulti(q)?(q.options||[]):qOptions(q);
+    const shapes=isTF(q)?qShapes(q):SHAPES;
+    const nOpt=isTF(q)?2:Math.min((opts||[]).length,4);
+    barsEl.style.gridTemplateColumns='repeat('+nOpt+',1fr)';
+    barsEl.style.maxWidth=nOpt===2?'460px':'';
+    barsEl.style.marginLeft='auto'; barsEl.style.marginRight='auto';
+    barsEl.style.height='';
+    barsEl.innerHTML=counts.slice(0,nOpt).map((n,i)=>{
+      const h=Math.round((n/max)*100);
+      const win=isMulti(q)?(q.correctSet||[]).includes(i):(i===correctIdx);
+      return `<div class="barcol">
+        <div class="bar ${shapes[i]}" style="height:${Math.max(6,h)}%">${n>0?n:''}</div>
+        <div class="barlabel ${win?'win':''}">${iconFor(q,i)}<span style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(opts[i]||'')}</span></div>
+      </div>`;
+    }).join('');
+    if(expl){
+      const corr=isMulti(q)?(q.correctSet||[]).map(c=>esc(opts[c]||'')).join(', '):esc((opts||[])[correctIdx]||'');
+      explEl.innerHTML='<b>✓ '+corr+'</b> &nbsp;·&nbsp; '+esc(expl); explEl.classList.remove('hide');
+    }else explEl.classList.add('hide');
   }
+  renderLeaderboard('hr-lb',6);
   // navegació: enrere per repassar preguntes anteriors (només repàs, no torna a puntuar)
   const viewing=hostGame.viewIdx, cur=hostGame.currentQ;
   document.getElementById('hr-prev').classList.toggle('hide', viewing<=0);
@@ -1460,40 +1571,44 @@ function renderHostResults(idx,counts,correctIdx){
   document.getElementById('hr-detail-btn').textContent='👁 Veure resposta de cada alumne';
 }
 
-/* Repàs (sense puntuar) d'una pregunta ja tancada */
 function showResultsFor(idx){
   const det=hostGame.detail[idx]||{};
   const counts=[0,0,0,0];
-  Object.values(det).forEach(a=>{ if(typeof a.choice==='number'&&a.choice>=0) counts[a.choice]++; });
+  const q=hostGame.quiz.questions[idx];
+  Object.values(det).forEach(a=>{
+    if(isMulti(q)&&Array.isArray(a.choice)) a.choice.forEach(c=>{ if(c>=0&&c<4) counts[c]++; });
+    else if(typeof a.choice==='number'&&a.choice>=0) counts[a.choice]++;
+  });
   hostGame.viewIdx=idx;
-  renderHostResults(idx,counts,hostGame.quiz.questions[idx].correct);
+  renderHostResults(idx,counts,q.correct);
 }
 function prevQuestion(){ if(hostGame.viewIdx>0) showResultsFor(hostGame.viewIdx-1); }
 
 function togglePerStudent(){
   const det=document.getElementById('hr-detail');
   const btn=document.getElementById('hr-detail-btn');
-  if(!det.classList.contains('hide')){
-    det.classList.add('hide'); btn.textContent='👁 Veure resposta de cada alumne'; return;
-  }
+  if(!det.classList.contains('hide')){ det.classList.add('hide'); btn.textContent='👁 Veure resposta de cada alumne'; return; }
   const idx=hostGame.detailIdx;
   const q=hostGame.quiz.questions[idx];
   const d=(hostGame.detail&&hostGame.detail[idx])||{};
   const players=hostGame.players||{};
-  // ordena per nom
   const rows=Object.keys(players).map(pid=>{
-    const a=d[pid];
-    return {name:players[pid].name, choice:a?a.choice:-1, correct:a?a.correct:null, points:a?a.points:0};
+    const a=d[pid]||null;
+    return {name:players[pid].name,a};
   }).sort((x,y)=>x.name.localeCompare(y.name));
   det.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+rows.map(r=>{
-    let badge,col;
-    if(r.choice<0){ badge='— sense resposta'; col='var(--muted)'; }
-    else if(r.correct){ badge=optLabel(q,r.choice)+' ✓ (+'+r.points+')'; col='var(--good)'; }
-    else { badge=optLabel(q,r.choice)+' ✗'; col='var(--bad)'; }
-    return `<div class="lb-row" style="padding:10px 16px">
-      <span class="lb-name" style="font-size:17px">${esc(r.name)}</span>
-      <span style="font-family:'Fredoka';font-weight:700;color:${col}">${badge}</span>
-    </div>`;
+    const a=r.a; let badge,col;
+    if(!a){ badge='— sense resposta'; col='var(--muted)'; }
+    else if(isFill(q)){ badge=(a.correct?'✓ ':'✗ ')+esc(a.answer||'—'); col=a.correct?'var(--good)':'var(--bad)'; }
+    else if(isMulti(q)){
+      const chosen=Array.isArray(a.choice)?a.choice:[];
+      badge=(chosen.map(c=>optLabel(q,c)).join(',')||'—')+(a.correct?' ✓':' ✗');
+      col=a.correct?'var(--good)':'var(--bad)';
+    }else{
+      if(a.choice<0||a.choice==null){ badge='— sense resposta'; col='var(--muted)'; }
+      else{ badge=optLabel(q,a.choice)+(a.correct?' ✓ (+'+a.points+')':' ✗'); col=a.correct?'var(--good)':'var(--bad)'; }
+    }
+    return `<div class="lb-row" style="padding:10px 16px"><span class="lb-name" style="font-size:17px">${esc(r.name)}</span><span style="font-family:'Fredoka';font-weight:700;color:${col}">${badge}</span></div>`;
   }).join('')+'</div>';
   det.classList.remove('hide');
   btn.textContent='🙈 Amagar detall';
@@ -1524,7 +1639,10 @@ function saveHistory(){
   Object.keys(hostGame.players||{}).forEach(pid=>{
     players[pid]={name:hostGame.players[pid].name,score:hostGame.scores[pid]||0};
   });
-  const questions=hostGame.quiz.questions.map(q=>({q:q.q,options:qOptions(q),correct:q.correct,type:isTF(q)?'tf':'mcq'}));
+  const questions=hostGame.quiz.questions.map(q=>({
+    q:q.q, type:q.type||'mcq', options:qOptions(q), correct:q.correct,
+    accepted:q.accepted||null, correctSet:q.correctSet||null
+  }));
   const record={
     title:hostGame.quiz.title||'Quiz',
     listName:hostGame.listName||'',
@@ -1593,18 +1711,31 @@ function downloadResults(){
 function buildDetailRows(title,questions,players,answers){
   const nQ=questions.length;
   const header=['Nom'];
-  questions.forEach((q,k)=>header.push('P'+(k+1)+' (correcta: '+optLabel(q,q.correct)+')'));
+  questions.forEach((q,k)=>{
+    const qt=q.type||'mcq';
+    if(qt==='fill') header.push('P'+(k+1)+' (escriure)');
+    else if(qt==='multi') header.push('P'+(k+1)+' (múltiple, correcta: '+((q.correctSet||[]).map(c=>optLabel(q,c)).join(','))+')');
+    else header.push('P'+(k+1)+' (correcta: '+optLabel(q,q.correct)+')');
+  });
   header.push('Encerts','Nota (/10)','Punts');
   const rows=[header];
-  // ordena per puntuació desc
   const pids=Object.keys(players).sort((a,b)=>(players[b].score||0)-(players[a].score||0));
   pids.forEach(pid=>{
     const row=[players[pid].name];
     let correct=0;
     questions.forEach((q,k)=>{
       const a=(answers[k]||{})[pid];
-      if(!a||a.choice<0||a.choice==null) row.push('—');
-      else { row.push(optLabel(q,a.choice)+(a.correct?' ✓':' ✗')); if(a.correct) correct++; }
+      const qt=q.type||'mcq';
+      if(!a) row.push('—');
+      else if(qt==='fill'){ row.push((a.answer||'—')+(a.correct?' ✓':' ✗')); if(a.correct) correct++; }
+      else if(qt==='multi'){
+        const ch=Array.isArray(a.choice)?a.choice:[];
+        row.push((ch.map(c=>optLabel(q,c)).join(','))||'—')+(a.correct?' ✓':' ✗');
+        if(a.correct) correct++;
+      }else{
+        if(a.choice<0||a.choice==null) row.push('—');
+        else{ row.push(optLabel(q,a.choice)+(a.correct?' ✓':' ✗')); if(a.correct) correct++; }
+      }
     });
     row.push(correct+'/'+nQ, grade10(correct,nQ), players[pid].score||0);
     rows.push(row);
@@ -1612,7 +1743,10 @@ function buildDetailRows(title,questions,players,answers){
   return rows;
 }
 function downloadFullResults(){
-  const questions=hostGame.quiz.questions.map(q=>({correct:q.correct,type:isTF(q)?'tf':'mcq'}));
+  const questions=hostGame.quiz.questions.map(q=>({
+    correct:q.correct, type:q.type||'mcq', options:q.options||[],
+    accepted:q.accepted||null, correctSet:q.correctSet||null
+  }));
   const players={};
   Object.keys(hostGame.players||{}).forEach(pid=>{
     players[pid]={name:hostGame.players[pid].name,score:hostGame.scores[pid]||0};
@@ -1671,6 +1805,7 @@ let pQuiz=null;
 let pStartReceived=0;
 let pAnswered=false;
 let pStreak=0, pMaxStreak=0, pPrevRank=null, pLastResultIdx=-1;
+let pMultiSelected=[], pCurrentIdx=-1;
 let pCurrentShuffleOrder=null;
 
 /* ── Sessió del jugador (per reconnectar després d'una recàrrega o tall de wifi) ── */
@@ -1828,22 +1963,45 @@ function playerShowQuestion(st){
 function renderPlayerQuestion(st,idx,q){
   pAnswered=false;
   pStartReceived=Date.now();
+  pCurrentIdx=idx;
+  pMultiSelected=[];
   show('s-pquestion');
   const total=pQuiz.questions.length;
   document.getElementById('pq-count').textContent=(idx+1)+'/'+total;
   document.getElementById('pq-double').classList.toggle('hide',!q.double);
   document.getElementById('pq-text').textContent=q.q;
   document.getElementById('pq-img').innerHTML=imgHTML(q);
-  document.getElementById('pq-opts').className='opts'+(isTF(q)?' opts-tf':'');
-  const opts=qOptions(q), nOpts=opts.length;
-  if(pQuiz.shuffle && !isTF(q)){
-    pCurrentShuffleOrder=seededShuffle([...Array(nOpts).keys()], (me.id||'')+idx);
+  document.getElementById('pq-extra').innerHTML='';
+
+  if(isFill(q)){
+    document.getElementById('pq-opts').className='';
+    document.getElementById('pq-opts').innerHTML='';
+    document.getElementById('pq-extra').innerHTML=
+      `<input id="pq-fill-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="none"
+        placeholder="Escriu la teva resposta..."
+        onkeydown="if(event.key==='Enter')playerSubmitFill()"
+        style="max-width:420px;width:100%;font-size:20px;text-align:center;margin-bottom:12px">
+       <br><button class="btn big" style="width:auto" onclick="playerSubmitFill()">Enviar →</button>`;
+    setTimeout(()=>{ const el=document.getElementById('pq-fill-input'); if(el) el.focus(); },200);
+  }else if(isMulti(q)){
+    document.getElementById('pq-opts').className='opts';
+    document.getElementById('pq-opts').innerHTML=(q.options||[]).map((o,i)=>
+      `<button class="opt ${SHAPES[i]}" id="pq-multi-${i}" onclick="playerToggleMulti(${i})">${ICONS[SHAPES[i]]}<span>${esc(o)}</span></button>`).join('');
+    document.getElementById('pq-extra').innerHTML=
+      `<button class="btn big" style="width:auto;margin-top:10px" onclick="playerConfirmMulti()">Confirmar →</button>
+       <div class="muted" style="font-size:13px;margin-top:6px">Selecciona una o més opcions i confirma.</div>`;
   }else{
-    pCurrentShuffleOrder=[...Array(nOpts).keys()];
+    // mcq / tf: shuffle if enabled
+    document.getElementById('pq-opts').className='opts'+(isTF(q)?' opts-tf':'');
+    const opts=qOptions(q), nOpts=opts.length;
+    if(pQuiz.shuffle && !isTF(q)){
+      pCurrentShuffleOrder=seededShuffle([...Array(nOpts).keys()], (me.id||'')+idx);
+    }else{
+      pCurrentShuffleOrder=[...Array(nOpts).keys()];
+    }
+    document.getElementById('pq-opts').innerHTML=pCurrentShuffleOrder.map((origIdx,displayIdx)=>
+      `<button class="opt ${qShapes(q)[displayIdx]}" onclick="playerAnswer(${idx},${displayIdx})">${iconFor(q,displayIdx)}<span>${esc(opts[origIdx])}</span></button>`).join('');
   }
-  document.getElementById('pq-opts').innerHTML=pCurrentShuffleOrder.map((origIdx,displayIdx)=>
-    `<button class="opt ${qShapes(q)[displayIdx]}" onclick="playerAnswer(${idx},${displayIdx})">${iconFor(q,displayIdx)}<span>${esc(opts[origIdx])}</span></button>`).join('');
-  // local countdown (visual) — uses this question's time
   const t=q.time||20;
   let rem=t;
   drawTimer(document.getElementById('pq-timer'),1,rem);
@@ -1853,6 +2011,46 @@ function renderPlayerQuestion(st,idx,q){
     drawTimer(document.getElementById('pq-timer'),Math.max(0,rem/t),Math.max(0,rem));
     if(rem<=0)clearInterval(countdownTimer);
   },1000);
+}
+
+function playerSubmitFill(){
+  if(pAnswered) return;
+  const inp=document.getElementById('pq-fill-input');
+  const answer=(inp?inp.value:'').trim();
+  if(!answer){toast('Escriu una resposta');return;}
+  pAnswered=true;
+  clearInterval(countdownTimer);
+  const elapsed=Date.now()-pStartReceived;
+  db.ref('games/'+me.pin+'/answers/'+pCurrentIdx+'/'+me.id).set({answer,elapsed});
+  document.getElementById('pw-emoji').textContent='⏳';
+  document.getElementById('pw-text').textContent='Resposta enviada!';
+  show('s-pwait');
+}
+function playerToggleMulti(i){
+  if(pAnswered) return;
+  const idx=pMultiSelected.indexOf(i);
+  if(idx>=0) pMultiSelected.splice(idx,1); else pMultiSelected.push(i);
+  [0,1,2,3].forEach(o=>{
+    const el=document.getElementById('pq-multi-'+o);
+    if(el) el.classList.toggle('picked',pMultiSelected.includes(o));
+  });
+}
+function playerConfirmMulti(){
+  if(pAnswered) return;
+  pAnswered=true;
+  clearInterval(countdownTimer);
+  const elapsed=Date.now()-pStartReceived;
+  const choice=[...pMultiSelected].sort((a,b)=>a-b);
+  db.ref('games/'+me.pin+'/answers/'+pCurrentIdx+'/'+me.id).set({choice,elapsed});
+  [0,1,2,3].forEach(o=>{
+    const el=document.getElementById('pq-multi-'+o);
+    if(el){ if(pMultiSelected.includes(o)) el.classList.add('picked'); else el.classList.add('dim'); }
+  });
+  setTimeout(()=>{
+    document.getElementById('pw-emoji').textContent='⏳';
+    document.getElementById('pw-text').textContent='Resposta enviada!';
+    show('s-pwait');
+  },300);
 }
 
 function playerAnswer(idx,displayChoice){
