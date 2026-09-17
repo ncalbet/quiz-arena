@@ -332,6 +332,31 @@ textarea{resize:vertical;min-height:64px}
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
+     HOST · QUI ETS?  (carpetes de professor)
+     ══════════════════════════════════════════════════════════ -->
+<div id="s-hwho" class="screen center">
+  <div class="wrap center">
+    <div class="box">
+      <div class="brand">Quiz&nbsp;Arena</div>
+      <div class="tag">Qui ets?</div>
+      <div class="panel" style="margin-top:26px">
+        <div id="who-list" style="display:flex;flex-direction:column;gap:10px"></div>
+        <div class="field" style="margin-top:18px">
+          <label>O afegeix-te a la llista</label>
+          <input id="who-new" placeholder="El teu nom" autocomplete="off"
+            onkeydown="if(event.key==='Enter')addTeacher()">
+        </div>
+        <button class="btn" style="width:100%" onclick="addTeacher()">+ Afegir professor</button>
+        <p class="muted" style="font-size:13px;margin-top:14px">
+          Serveix per tenir el material ordenat per carpetes. Tothom pot veure i reutilitzar
+          els quizzes dels altres.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
      HOST · QUIZ MANAGER
      ══════════════════════════════════════════════════════════ -->
 <div id="s-hquizzes" class="screen">
@@ -339,11 +364,13 @@ textarea{resize:vertical;min-height:64px}
     <div class="topbar">
       <div><span class="brand" style="font-size:30px">Quiz Arena</span><div class="tag">Panell del professor</div></div>
       <div class="row" style="gap:10px">
+        <button class="btn ghost sm" id="who-btn" onclick="switchTeacher()" title="Canviar de professor">👤 —</button>
         <button class="btn ghost sm" onclick="openHistory()">📊 Historial</button>
         <button class="btn ghost sm" onclick="openLists()">👥 Alumnes</button>
         <button class="btn sm" onclick="newQuiz()">+ Nou quiz</button>
       </div>
     </div>
+    <div id="hq-folders" class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
     <div id="hq-list"></div>
     <div id="hq-empty" class="card center hide" style="padding:50px">
       <div style="font-size:48px">📚</div>
@@ -553,6 +580,7 @@ textarea{resize:vertical;min-height:64px}
     <div class="topbar">
       <button class="btn ghost sm" onclick="backToQuizzes()">← Tornar</button>
       <h2 style="font-size:24px">📊 Historial de partides</h2>
+      <button class="btn ghost sm" id="hist-scope" onclick="toggleHistScope()">Veure les de tothom</button>
     </div>
     <div id="hist-list"></div>
     <div id="hist-empty" class="card center hide" style="padding:46px">
@@ -762,33 +790,103 @@ let quizzes={};        // id -> quiz
 let editing=null;      // {id, quiz}
 let hostGame=null;     // {pin, quiz, players, scores}
 
+/* ── Professors (carpetes) ────────────────────────────────────
+   No és un sistema de seguretat: només ordena el material perquè
+   diversos professors no es trepitgin. Qualsevol pot triar
+   qualsevol carpeta; el material de tothom és visible per a tothom. */
+let teachers={};        // tid -> {name, createdAt}
+let teacher=null;       // {id, name} — professor actiu en aquest navegador
+let folderFilter=null;  // tid | 'all' | 'none'  (null = la meva carpeta)
+const TEACHER_KEY='qaTeacher';
+
+function teacherName(tid){ return (teachers[tid]||{}).name||''; }
+function myId(){ return teacher?teacher.id:null; }
+function isMine(o){ return !!(teacher && o && o.owner===teacher.id); }
+/* el material sense propietari (creat abans de les carpetes) el pot tocar qualsevol */
+function canEdit(o){ return !!o && (!o.owner || isMine(o)); }
+
 function hostInit(){
   if(HOST_PIN){
     let okAuth=false;
     try{ okAuth = sessionStorage.getItem('hostAuth')==='1'; }catch(e){}
     if(!okAuth){ show('s-hlogin'); setTimeout(()=>{const e=document.getElementById('hl-pass');if(e)e.focus();},100); return; }
   }
-  hostMain();
+  hostStart();
 }
 function checkHostPass(){
   const v=document.getElementById('hl-pass').value;
   const w=document.getElementById('hl-pass-warn');
   if(v===HOST_PIN){
     try{ sessionStorage.setItem('hostAuth','1'); }catch(e){}
-    hostMain();
+    hostStart();
   }else{
     w.style.display='block'; w.textContent='Contrasenya incorrecta.';
   }
 }
+
+/* Arrencada: qui ets? Si ja ho vas dir en aquest navegador, entra directe. */
+function hostStart(){
+  db.ref('teachers').on('value',snap=>{
+    teachers=snap.val()||{};
+    renderTeacherPicker();
+    if(teacher && teachers[teacher.id]) teacher.name=teachers[teacher.id].name;
+    updateWhoBtn();
+    if(document.getElementById('s-hquizzes').classList.contains('on')) renderQuizList();
+  });
+  let saved=null; try{ saved=localStorage.getItem(TEACHER_KEY); }catch(e){}
+  if(!saved){ show('s-hwho'); return; }
+  db.ref('teachers/'+saved).once('value',s=>{
+    if(s.exists()){ teacher={id:saved, name:(s.val().name||'')}; hostMain(); }
+    else show('s-hwho');   // el professor desat ja no existeix
+  });
+}
+function renderTeacherPicker(){
+  const el=document.getElementById('who-list'); if(!el) return;
+  const ids=Object.keys(teachers).sort((a,b)=>teacherName(a).localeCompare(teacherName(b)));
+  el.innerHTML = ids.length
+    ? ids.map(tid=>`<button class="btn" style="width:100%" onclick="pickTeacher('${tid}')">${esc(teachers[tid].name)}</button>`).join('')
+    : `<p class="muted">Encara no hi ha cap professor. Escriu el teu nom aquí sota.</p>`;
+}
+function pickTeacher(tid){
+  if(!teachers[tid]) return;
+  teacher={id:tid, name:teachers[tid].name};
+  try{ localStorage.setItem(TEACHER_KEY,tid); }catch(e){}
+  folderFilter=null;
+  hostMain();
+}
+function addTeacher(){
+  const el=document.getElementById('who-new');
+  const name=(el.value||'').trim();
+  if(!name){ toast('Escriu el teu nom'); return; }
+  const dup=Object.keys(teachers).find(tid=>normName(teacherName(tid))===normName(name));
+  if(dup){ el.value=''; pickTeacher(dup); return; }   // ja hi era: entra-hi
+  const ref=db.ref('teachers').push();
+  const rec={name, createdAt:Date.now()};
+  ref.set(rec,()=>{ teachers[ref.key]=rec; el.value=''; pickTeacher(ref.key); });
+}
+function switchTeacher(){
+  try{ localStorage.removeItem(TEACHER_KEY); }catch(e){}
+  db.ref('quizzes').off();
+  teacher=null; folderFilter=null;
+  show('s-hwho');
+}
+function updateWhoBtn(){
+  const b=document.getElementById('who-btn');
+  if(b) b.textContent='👤 '+(teacher?teacher.name:'—');
+}
+
 function hostMain(){
   show('s-hquizzes');
+  updateWhoBtn();
   cleanupOldGames();
+  db.ref('quizzes').off();
   db.ref('quizzes').on('value',snap=>{
     quizzes=snap.val()||{};
     if(Object.keys(quizzes).length===0){
       // seed demo
       const ref=db.ref('quizzes').push();
-      ref.set(DEMO_QUIZ);
+      const demo=Object.assign({},DEMO_QUIZ); if(myId()) demo.owner=myId();
+      ref.set(demo);
     }
     renderQuizList();
   });
@@ -809,22 +907,54 @@ function cleanupOldGames(){
 function renderQuizList(){
   const list=document.getElementById('hq-list');
   const ids=Object.keys(quizzes);
-  document.getElementById('hq-empty').classList.toggle('hide',ids.length>0);
-  list.innerHTML=ids.map(id=>{
+
+  // carpetes: la meva, la dels altres que tenen material, els antics sense carpeta, i tots
+  const counts={}; let noneCount=0;
+  ids.forEach(id=>{ const o=quizzes[id].owner; if(o) counts[o]=(counts[o]||0)+1; else noneCount++; });
+  const folder = folderFilter || myId() || 'all';
+  const chips=[];
+  if(myId()) chips.push({k:myId(), label:'📁 Els meus', n:counts[myId()]||0});
+  Object.keys(counts).filter(tid=>tid!==myId())
+    .sort((a,b)=>teacherName(a).localeCompare(teacherName(b)))
+    .forEach(tid=>chips.push({k:tid, label:'📁 '+(teacherName(tid)||'Professor'), n:counts[tid]}));
+  if(noneCount) chips.push({k:'none', label:'📁 Sense carpeta', n:noneCount});
+  chips.push({k:'all', label:'Tots', n:ids.length});
+  document.getElementById('hq-folders').innerHTML=chips.map(c=>
+    `<button class="btn ${c.k===folder?'':'ghost'} sm" onclick="setFolder('${c.k}')">${esc(c.label)} <span style="opacity:.65">${c.n}</span></button>`
+  ).join('');
+
+  const visible=ids.filter(id=>{
+    const o=quizzes[id].owner||null;
+    if(folder==='all') return true;
+    if(folder==='none') return !o;
+    return o===folder;
+  });
+
+  const emptyEl=document.getElementById('hq-empty');
+  emptyEl.classList.toggle('hide',visible.length>0);
+  if(!visible.length){
+    const h=emptyEl.querySelector('h3'), p=emptyEl.querySelector('p');
+    if(ids.length){ h.textContent='Aquesta carpeta és buida'; p.textContent='Crea un quiz, o mira les carpetes dels altres professors.'; }
+    else { h.textContent='Encara no hi ha cap quiz'; p.textContent='Crea el primer quiz per començar.'; }
+  }
+
+  list.innerHTML=visible.map(id=>{
     const q=quizzes[id];
     const n=(q.questions||[]).length;
+    const who=(q.owner&&q.owner!==myId())?(' · '+esc(teacherName(q.owner)||'?')):'';
     return `<div class="qlist-row" style="cursor:default">
       <div style="flex:1">
         <div style="font-family:'Fredoka';font-weight:600;font-size:20px">${esc(q.title||'Sense títol')}</div>
-        <div class="muted" style="font-size:14px">${n} preguntes · ${q.time||20}s per pregunta${q.shuffle?' · 🔀':''}</div>
+        <div class="muted" style="font-size:14px">${n} preguntes · ${q.time||20}s per pregunta${q.shuffle?' · 🔀':''}${who}</div>
       </div>
       <button class="btn green sm" onclick="openLaunchPicker('${id}')">▶ Jugar</button>
-      <button class="btn ghost sm" onclick="duplicateQuiz('${id}')">⧉ Duplicar</button>
-      <button class="btn ghost sm" onclick="editQuiz('${id}')">✏️</button>
-      <button class="btn danger sm" onclick="deleteQuiz('${id}')">🗑</button>
+      <button class="btn ghost sm" onclick="duplicateQuiz('${id}')" title="Copiar-lo a la meva carpeta">⧉ Duplicar</button>
+      ${canEdit(q)?`<button class="btn ghost sm" onclick="editQuiz('${id}')">✏️</button>
+      <button class="btn danger sm" onclick="deleteQuiz('${id}')">🗑</button>`:''}
     </div>`;
   }).join('');
 }
+function setFolder(k){ folderFilter=k; renderQuizList(); }
 
 function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
@@ -1015,9 +1145,12 @@ function saveQuiz(){
     }
   }
   editing.quiz.title=title; editing.quiz.time=time; editing.quiz.shuffle=document.getElementById('ed-shuffle').checked;
+  // qui el desa se'l queda a la seva carpeta (els quizzes vells no en tenien)
+  const adopted = !editing.quiz.owner && !!myId();
+  if(myId() && !editing.quiz.owner) editing.quiz.owner=myId();
   if(editing.id){ db.ref('quizzes/'+editing.id).set(editing.quiz); }
   else { db.ref('quizzes').push().set(editing.quiz); }
-  toast('Quiz desat ✓');
+  toast(adopted&&editing.id ? 'Quiz desat ✓ · ara és a la teva carpeta' : 'Quiz desat ✓');
   backToQuizzes();
 }
 function deleteQuiz(id){
@@ -1027,8 +1160,10 @@ function deleteQuiz(id){
 function duplicateQuiz(id){
   const q=JSON.parse(JSON.stringify(quizzes[id]));
   q.title=(q.title||'Quiz')+' (còpia)';
+  if(myId()) q.owner=myId(); else delete q.owner;   // la còpia és de qui la fa
   db.ref('quizzes').push().set(q);
-  toast('Quiz duplicat ✓');
+  folderFilter=myId()||'all';
+  toast('Quiz duplicat ✓ · és a la teva carpeta');
 }
 function backToQuizzes(){ editing=null; show('s-hquizzes'); }
 
@@ -1049,7 +1184,9 @@ function importQuizPrompt(){
       try{
         const q=JSON.parse(rd.result);
         if(!q.questions||!Array.isArray(q.questions)) throw 0;
-        db.ref('quizzes').push().set({title:q.title||'Importat',time:q.time||20,questions:q.questions});
+        const rec={title:q.title||'Importat',time:q.time||20,questions:q.questions};
+        if(myId()) rec.owner=myId();
+        db.ref('quizzes').push().set(rec);
         toast('Quiz importat ✓');
       }catch(err){toast('Arxiu JSON no vàlid');}
     };
@@ -1188,13 +1325,14 @@ function renderLists(){
   document.getElementById('lists-empty').classList.toggle('hide',ids.length>0);
   document.getElementById('lists-list').innerHTML=ids.map(id=>{
     const l=lists[id]; const n=(l.students||[]).length;
+    const who=(l.owner&&l.owner!==myId())?(' · '+esc(teacherName(l.owner)||'?')):'';
     return `<div class="qlist-row" style="cursor:default">
       <div style="flex:1">
         <div style="font-family:'Fredoka';font-weight:600;font-size:19px">${esc(l.name||'Sense nom')}</div>
-        <div class="muted" style="font-size:14px">${n} alumnes</div>
+        <div class="muted" style="font-size:14px">${n} alumnes${who}</div>
       </div>
-      <button class="btn ghost sm" onclick="editList('${id}')">✏️ Editar</button>
-      <button class="btn danger sm" onclick="deleteList('${id}')">🗑</button>
+      ${canEdit(l)?`<button class="btn ghost sm" onclick="editList('${id}')">✏️ Editar</button>
+      <button class="btn danger sm" onclick="deleteList('${id}')">🗑</button>`:''}
     </div>`;
   }).join('');
 }
@@ -1226,6 +1364,9 @@ function saveList(){
   if(!name){ toast('Posa un nom a la classe'); return; }
   const students=parseNames(document.getElementById('list-text').value);
   const data={name, students};
+  const prevOwner=editingList.id?((lists[editingList.id]||{}).owner||null):null;
+  const owner=prevOwner||myId();
+  if(owner) data.owner=owner;
   if(editingList.id) db.ref('lists/'+editingList.id).set(data);
   else db.ref('lists').push().set(data);
   toast('Llista desada ✓');
@@ -1276,6 +1417,7 @@ function downloadStudentTemplate(){
 
 /* ── Triar classe en llançar un quiz ── */
 let pendingQuizId=null;
+let launchToken=0;     // invalida reserves de PIN si es cancel·la abans d'hora
 function openLaunchPicker(id){
   pendingQuizId=id;
   show('s-hpick');
@@ -1285,7 +1427,8 @@ function openLaunchPicker(id){
     const ids=Object.keys(ls);
     let html=ids.map(lid=>{
       const l=ls[lid]; const n=(l.students||[]).length;
-      return `<button class="btn big" style="width:100%" onclick="launchGame('${id}','${lid}')">${esc(l.name)} <span style="opacity:.7;font-size:15px">(${n} alumnes)</span></button>`;
+      const who=(l.owner&&l.owner!==myId())?(' · '+esc(teacherName(l.owner)||'?')):'';
+      return `<button class="btn big" style="width:100%" onclick="launchGame('${id}','${lid}')">${esc(l.name)} <span style="opacity:.7;font-size:15px">(${n} alumnes)${who}</span></button>`;
     }).join('');
     html+=`<button class="btn ghost" style="width:100%" onclick="launchGame('${id}','')">Sense validació · qualsevol nom</button>`;
     if(!ids.length){
@@ -1314,10 +1457,23 @@ function launchGame(id, listId){
     finish('', null);
   }
 }
-function doLaunch(quiz,listName,students){
+/* Reserva un PIN lliure: la transacció només escriu si el node no existeix,
+   així dos professors que llancin alhora no es poden trepitjar la partida. */
+function claimPin(node, ok, tries){
+  tries=(tries==null)?15:tries;
+  if(tries<=0){ toast('No s\'ha trobat cap PIN lliure. Torna-ho a provar.'); backToQuizzes(); return; }
   const pin=genPin();
+  db.ref('games/'+pin).transaction(
+    cur => (cur===null ? node : undefined),   // undefined = avorta: el PIN ja és ocupat
+    (err, committed) => {
+      if(err){ toast('Error creant la partida'); backToQuizzes(); return; }
+      if(committed) ok(pin); else claimPin(node, ok, tries-1);
+    }
+  );
+}
+
+function doLaunch(quiz,listName,students){
   const validate=Array.isArray(students)&&students.length>0;
-  hostGame={pin, quiz, scores:{}, players:{}, closedQ:-1, detail:{}, viewIdx:0, listName:listName||''};
   // Strip correct answers + explanation from the version players read; keep per-question time
   const publicQuestions=quiz.questions.map(q=>{
     const base={q:q.q,type:q.type||'mcq',time:q.time||quiz.time||20,double:!!q.double,image:(q.image||'')};
@@ -1326,18 +1482,30 @@ function doLaunch(quiz,listName,students){
     return {...base,options:qOptions(q)};     // mcq/tf: options (correct stripped)
   });
   const node={
-    meta:{title:quiz.title,total:quiz.questions.length,createdAt:Date.now(),validate,listName:listName||''},
+    meta:{title:quiz.title,total:quiz.questions.length,createdAt:Date.now(),validate,listName:listName||'',
+          host:teacher?teacher.name:''},
     quiz:{questions:publicQuestions,shuffle:!!quiz.shuffle},
     state:{phase:'lobby',currentQ:-1,qStartAt:0}
   };
   if(validate) node.roster=students;   // noms permesos (visible per validar al client)
-  db.ref('games/'+pin).set(node);
+
+  // sala a la pantalla de seguida; el PIN hi apareix quan està reservat
+  const tok=++launchToken; hostGame=null;
   show('s-hlobby');
-  document.getElementById('hl-pin').textContent=pin;
+  document.getElementById('hl-pin').textContent='····';
   document.getElementById('hl-quiztitle').textContent=quiz.title+(listName?(' · '+listName):' · sense validació');
   document.getElementById('hl-players').innerHTML='';
   document.getElementById('hl-count').textContent='0';
   document.getElementById('hl-start').disabled=true;
+  claimPin(node, pin=>{
+    if(tok!==launchToken){ db.ref('games/'+pin).remove(); return; }  // han cancel·lat mentrestant
+    startLobby(pin,quiz,listName);
+  });
+}
+
+function startLobby(pin,quiz,listName){
+  hostGame={pin, quiz, scores:{}, players:{}, closedQ:-1, detail:{}, viewIdx:0, listName:listName||''};
+  document.getElementById('hl-pin').textContent=pin;
   // listen players — es manté actiu TOTA la partida perquè els que entren tard
   // també surtin al comptador, al rànquing i al CSV
   db.ref('games/'+pin+'/players').on('value',snap=>{
@@ -1358,7 +1526,8 @@ function kickPlayer(pid){
   delete hostGame.scores[pid];
 }
 function cancelGame(){
-  if(!hostGame)return;
+  launchToken++;                                   // anul·la una reserva de PIN en curs
+  if(!hostGame){ show('s-hquizzes'); return; }
   db.ref('games/'+hostGame.pin).remove();
   detachGame();
   hostGame=null;
@@ -1646,6 +1815,8 @@ function saveHistory(){
   const record={
     title:hostGame.quiz.title||'Quiz',
     listName:hostGame.listName||'',
+    owner:myId()||'',
+    ownerName:teacher?teacher.name:'',
     date:Date.now(),
     n:questions.length,
     questions,
@@ -1759,6 +1930,7 @@ function downloadFullResults(){
    HISTORIAL
    ════════════════════════════════════════════════════════════ */
 let historyCache={};
+let histAll=false;     // false = només les meves (i les antigues sense professor)
 function openHistory(){
   show('s-hhistory');
   db.ref('history').once('value',snap=>{
@@ -1766,8 +1938,13 @@ function openHistory(){
     renderHistory();
   });
 }
+function toggleHistScope(){ histAll=!histAll; renderHistory(); }
 function renderHistory(){
-  const ids=Object.keys(historyCache).sort((a,b)=>(historyCache[b].date||0)-(historyCache[a].date||0));
+  const all=Object.keys(historyCache).sort((a,b)=>(historyCache[b].date||0)-(historyCache[a].date||0));
+  // per defecte, les meves i les antigues (que no tenen professor); el botó les mostra totes
+  const ids=all.filter(id=>{ const o=historyCache[id].owner; return histAll || !myId() || !o || o===myId(); });
+  const sb=document.getElementById('hist-scope');
+  if(sb){ sb.textContent = histAll?'Veure només les meves':'Veure les de tothom'; sb.classList.toggle('hide',!myId()); }
   document.getElementById('hist-empty').classList.toggle('hide',ids.length>0);
   document.getElementById('hist-list').innerHTML=ids.map(id=>{
     const r=historyCache[id];
@@ -1778,10 +1955,10 @@ function renderHistory(){
     return `<div class="qlist-row" style="cursor:default">
       <div style="flex:1">
         <div style="font-family:'Fredoka';font-weight:600;font-size:19px">${esc(r.title||'Quiz')}${r.listName?(' · '+esc(r.listName)):''}</div>
-        <div class="muted" style="font-size:14px">${dateStr} · ${np} alumnes · ${r.n||0} preguntes${top?(' · 🥇 '+esc(top.name)+' ('+(top.score||0)+')'):''}</div>
+        <div class="muted" style="font-size:14px">${dateStr} · ${np} alumnes · ${r.n||0} preguntes${top?(' · 🥇 '+esc(top.name)+' ('+(top.score||0)+')'):''}${(r.owner&&r.owner!==myId())?(' · 👤 '+esc(r.ownerName||teacherName(r.owner)||'?')):''}</div>
       </div>
       <button class="btn green sm" onclick="downloadHistoryCSV('${id}')">⬇ CSV</button>
-      <button class="btn danger sm" onclick="deleteHistory('${id}')">🗑</button>
+      ${canEdit(r)?`<button class="btn danger sm" onclick="deleteHistory('${id}')">🗑</button>`:''}
     </div>`;
   }).join('');
 }
