@@ -1871,7 +1871,7 @@ function endQuestion(){
     hostGame.viewIdx=idx;
     db.ref('games/'+hostGame.pin+'/state').set({phase:'results',currentQ:idx,qStartAt:0});
     soundReveal();
-    renderHostResults(idx,counts,correctIdx);
+    renderHostResults(idx,counts,q.correct);
   });
 }
 
