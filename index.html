@@ -1385,9 +1385,13 @@ function parseCSV(text){
   if(field!==''||row.length){ row.push(field); rows.push(row); }
   return rows.filter(r=>r.some(c=>c.trim()!==''));
 }
-function csvCell(v){ v=String(v==null?'':v); return /[",;\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function csvCell(v){
+  if(typeof v==='number') return String(v).replace('.',',');   // decimal amb coma: Excel ca/es ho llegeix com a nombre
+  v=String(v==null?'':v);
+  return /[",;\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
+}
 function downloadCSV(filename,rows){
-  const text='\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\n'); // BOM per accents a Excel
+  const text='\uFEFF'+rows.map(r=>r.map(csvCell).join(';')).join('\n'); // BOM per accents; ';' perque Excel ca/es separi columnes (parseCSV accepta ',' i ';')
   const blob=new Blob([text],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
 }
@@ -2073,7 +2077,7 @@ function buildDetailRows(title,questions,players,answers){
       else if(qt==='fill'){ row.push((a.answer||'—')+(a.correct?' ✓':' ✗')); if(a.correct) correct++; }
       else if(qt==='multi'){
         const ch=Array.isArray(a.choice)?a.choice:[];
-        row.push((ch.map(c=>optLabel(q,c)).join(','))||'—')+(a.correct?' ✓':' ✗');
+        row.push(((ch.map(c=>optLabel(q,c)).join(','))||'—')+(a.correct?' ✓':' ✗'));
         if(a.correct) correct++;
       }else{
         if(a.choice<0||a.choice==null) row.push('—');
