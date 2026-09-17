@@ -207,6 +207,21 @@ textarea{resize:vertical;min-height:64px}
   background:linear-gradient(135deg,#ffd23f,#ff7b54);padding:5px 16px;border-radius:999px;
   animation:pulse-dbl .85s ease-in-out infinite alternate;white-space:nowrap}
 @keyframes pulse-dbl{from{transform:scale(1)}to{transform:scale(1.1)}}
+
+/* ── Ajuda del professorat ── */
+.help-hero{background:var(--card2);border:1px solid var(--line);border-radius:var(--r);
+  padding:20px 24px;margin-bottom:14px;font-size:16px;line-height:1.55;color:var(--muted)}
+.help-hero b{color:#fff}
+.help-grid{columns:3 330px;column-gap:14px}
+.help-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:18px 22px;color:var(--muted);line-height:1.5;
+  break-inside:avoid;-webkit-column-break-inside:avoid;display:inline-block;width:100%;margin-bottom:14px}
+.help-card h3{font-size:19px;margin:0 0 10px;color:var(--accent)}
+.help-card p{margin:0 0 8px}
+.help-card ul{margin:0;padding-left:20px}
+.help-card li{margin-bottom:7px}
+.help-card b{color:#fff}
+.help-card code{background:#0008;padding:2px 7px;border-radius:5px;font-size:14px;color:#fff}
 </style>
 </head>
 <body>
@@ -364,6 +379,7 @@ textarea{resize:vertical;min-height:64px}
     <div class="topbar">
       <div><span class="brand" style="font-size:30px">Quiz Arena</span><div class="tag">Panell del professor</div></div>
       <div class="row" style="gap:10px">
+        <button class="btn ghost sm" onclick="openHelp()" title="Com funciona">❓</button>
         <button class="btn ghost sm" id="who-btn" onclick="switchTeacher()" title="Canviar de professor">👤 —</button>
         <button class="btn ghost sm" onclick="openHistory()">📊 Historial</button>
         <button class="btn ghost sm" onclick="openLists()">👥 Alumnes</button>
@@ -588,6 +604,122 @@ textarea{resize:vertical;min-height:64px}
       <h3 style="margin:12px 0">Encara no hi ha partides desades</h3>
       <p class="muted">Quan acabis una partida, quedarà desada aquí per consultar-la o descarregar-la.</p>
     </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     HOST · AJUDA
+     ══════════════════════════════════════════════════════════ -->
+<div id="s-hhelp" class="screen">
+  <div class="wrap scroll">
+    <div class="topbar">
+      <button class="btn ghost sm" onclick="backToQuizzes()">← Tornar</button>
+      <h2 style="font-size:24px">❓ Com funciona</h2>
+      <span style="width:90px"></span>
+    </div>
+
+    <div class="help-hero">
+      <b>En 30 segons:</b> tu projectes aquesta pantalla i els alumnes entren des del seu
+      dispositiu a <b id="help-url">aquesta-web</b> amb el <b>PIN</b> que els surt projectat.
+      Cada pregunta va contrarellotge: com més ràpid encerten, més punts.
+      Al final teniu podi, i tu et descarregues les notes. Res d'instal·lar: ni tu, ni ells.
+    </div>
+
+    <div class="help-grid">
+
+      <div class="help-card">
+        <h3>1 · Prepara el quiz</h3>
+        <p><b>+ Nou quiz</b> i ja hi ets. Cada pregunta pot ser de quatre menes:</p>
+        <ul>
+          <li><b>Opció múltiple</b> — 4 respostes, una de bona.</li>
+          <li><b>Vertader / Fals</b> — dos botons i au.</li>
+          <li><b>Resposta múltiple</b> — més d'una opció correcta.</li>
+          <li><b>Escriure la resposta</b> — ho teclegen ells. Tu hi poses les respostes que
+            acceptes separades per <code>/</code> (p. ex. <code>London / londres</code>);
+            no mira majúscules ni espais de més.</li>
+        </ul>
+        <p style="margin-top:9px">Extres per pregunta: <b>segons</b>, <b>explicació</b> (es
+          projecta en corregir, va molt bé), <b>imatge</b> i <b>×2</b> per a les que valen doble.
+          I una casella per <b>barrejar l'ordre de les opcions</b> de cada alumne, que va bé
+          contra les mirades de reüll.</p>
+      </div>
+
+      <div class="help-card">
+        <h3>2 · Ja tens les preguntes en un full de càlcul?</h3>
+        <p>No les tornis a escriure. Baixa <b>⬇ Plantilla de quiz (CSV)</b>, omple-la amb el
+          Google Sheets o l'Excel, desa-la com a CSV i fes <b>⬆ Importar quiz (CSV)</b>.</p>
+        <p>S'obre a l'editor perquè hi facis un cop d'ull abans de desar. Si algun dia vols
+          passar un quiz a un altre centre o guardar-te'l, <b>⬇ Exportar</b> te'l baixa sencer.</p>
+      </div>
+
+      <div class="help-card">
+        <h3>3 · Les teves classes</h3>
+        <p>A <b>👥 Alumnes</b> fas una llista per classe: un alumne per línia, amb
+          <b>nom i cognom</b>. Pots copiar la columna del Sheets i enganxar-la de cop.</p>
+        <p>Si en llançar la partida tries la classe, <b>només hi podran entrar aquests noms</b>:
+          s'han acabat els "Bart Simpson" i els noms inventats.</p>
+        <p>L'app és comprensiva amb com escriuen: accepta el nom de pila si no es repeteix i,
+          si hi ha dos Marcs, els fa triar quin són.</p>
+      </div>
+
+      <div class="help-card">
+        <h3>4 · Juga-hi</h3>
+        <ul>
+          <li><b>▶ Jugar</b> al quiz → tria la classe (o <i>sense validació</i>, que deixa entrar
+            qualsevol nom).</li>
+          <li>Projecta el <b>PIN</b> i espera: els noms van sortint sols. Si n'hi ha un que no
+            toca, clica la <b>✕</b> del seu nom.</li>
+          <li><b>Començar el joc</b> quan hi siguin tots.</li>
+          <li>Durant la pregunta tens <b>⏸ Pausa</b> (per explicar alguna cosa), <b>+10 s</b>
+            (quan veus cares de pànic) i <b>tancar</b> sense esperar el rellotge.</li>
+          <li>Entre pregunta i pregunta: gràfic de respostes, la teva explicació, la
+            classificació i <b>👁 veure què ha contestat cadascú</b>.</li>
+          <li>Amb <b>← Pregunta anterior</b> pots tornar enrere a comentar-ne una. No es
+            torna a puntuar res.</li>
+        </ul>
+      </div>
+
+      <div class="help-card">
+        <h3>5 · Notes i historial</h3>
+        <p>En acabar tens dos CSV que s'obren a l'Excel: <b>⬇ Classificació</b> (posició, nom,
+          encerts, nota i punts) i <b>⬇ Respostes completes</b> (una columna per pregunta).</p>
+        <p>Hi ha <b>dues maneres de mirar-s'ho</b>, i totes dues surten al CSV:</p>
+        <ul>
+          <li><b>Punts</b> — encert + rapidesa. És el joc.</li>
+          <li><b>Nota (/10)</b> — encerts sobre el total, sense rapidesa. És l'avaluació.</li>
+        </ul>
+        <p style="margin-top:9px">A <b>📊 Historial</b> hi queda tot desat, per si te'n vols
+          descarregar una d'una altra setmana.</p>
+      </div>
+
+      <div class="help-card">
+        <h3>6 · Carpetes: cadascú la seva</h3>
+        <p>El material està ordenat per professor. Comences sempre a <b>📁 Els meus</b>, i pots
+          tafanejar les carpetes dels companys.</p>
+        <p>D'un quiz d'un altre pots <b>▶ Jugar</b> tal qual o fer <b>⧉ Duplicar</b>: te'n fa una
+          còpia a la teva carpeta per adaptar-la sense tocar l'original.</p>
+        <p>El botó <b>👤 amb el teu nom</b> serveix per canviar de professor (per exemple, si
+          compartiu l'ordinador de l'aula).</p>
+      </div>
+
+      <div class="help-card">
+        <h3>7 · Quatre coses que van bé saber</h3>
+        <ul>
+          <li><b>No tanquis aquesta pestanya</b> mentre jugueu: és la que porta la partida.</li>
+          <li>Si a un alumne se li penja el portàtil, que <b>recarregui la pàgina</b>: torna a
+            entrar a la partida amb els seus punts.</li>
+          <li>Els alumnes entren a l'adreça normal; el <code>#host</code> del final és només teu.</li>
+          <li>El <b>🔊</b> de dalt a la dreta apaga la música i els efectes, per si la classe del
+            costat fa un examen.</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <p class="muted" style="text-align:center;margin:22px 0 30px">
+      Tens un dubte que no surt aquí? Tot això, amb una mica més de detall, és al document
+      <b>GUIA-professor.md</b> que acompanya l'aplicació.
+    </p>
   </div>
 </div>
 
@@ -869,6 +1001,11 @@ function switchTeacher(){
   db.ref('quizzes').off();
   teacher=null; folderFilter=null;
   show('s-hwho');
+}
+function openHelp(){
+  const u=document.getElementById('help-url');
+  if(u) u.textContent=location.host+location.pathname;
+  show('s-hhelp');
 }
 function updateWhoBtn(){
   const b=document.getElementById('who-btn');
