@@ -1322,7 +1322,7 @@ function exportQuiz(){
 function exportQuizCSV(){
   const title=(document.getElementById('ed-title').value||'quiz').trim();
   const defTime=parseInt(document.getElementById('ed-time').value)||20;
-  const rows=[['pregunta','opcioA','opcioB','opcioC','opcioD','correcta','segons','explicacio','tipus','imatge','dobla']];
+  const rows=[['pregunta','opcioA','opcioB','opcioC','opcioD','correcta','segons','explicacio','tipus (mcq/tf/multi/fill)','imatge','dobla']];
   (editing.quiz.questions||[]).forEach(q=>{
     const o=q.options||[];
     let a='',b='',c='',d='',correcta='',tipus='mcq';
@@ -1339,6 +1339,7 @@ function exportQuizCSV(){
     }
     rows.push([q.q||'',a,b,c,d,correcta,q.time||defTime,q.explanation||'',tipus,q.image||'',q.double?'si':'']);
   });
+  addTypeLegend(rows);
   downloadCSV(title.replace(/[\\/:*?"<>|]/g,'-')+'.csv',rows);
   if(editing.quiz.shuffle) toast('Fet. Nota: el 🔀 d\'ordre barrejat no cap al CSV, el marcaràs en tornar-lo a importar');
 }
@@ -1391,9 +1392,28 @@ function csvCell(v){
   return /[",;\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
 }
 function downloadCSV(filename,rows){
-  const text='\uFEFF'+rows.map(r=>r.map(csvCell).join(';')).join('\n'); // BOM per accents; ';' perque Excel ca/es separi columnes (parseCSV accepta ',' i ';')
+  const text='\uFEFF'+rows.map(r=>r.map(csvCell).join(';')).join('\n'); // BOM per accents; ';' perquè Excel ca/es separi columnes (parseCSV accepta ',' i ';')
   const blob=new Blob([text],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+}
+
+/* Llegenda dels tipus de pregunta, en una columna a la dreta del full.
+   Va a les columnes 11-12: l'importador només llegeix fins a la 10 i salta les
+   files amb la primera cel·la buida, així que reimportar el fitxer no canvia. */
+const TYPE_LEGEND=[
+  "mcq = 4 opcions i 1 de correcta (a correcta: A, B, C o D)",
+  "tf = Vertader/Fals (a correcta: True o False)",
+  "multi = 4 opcions i diverses correctes (a correcta: p. ex. A,C)",
+  "fill = l'alumne escriu la resposta (variants a opcioA, separades per /)"
+];
+function addTypeLegend(rows){
+  rows[0][12]='LLEGENDA de la columna tipus';
+  TYPE_LEGEND.forEach((txt,i)=>{
+    if(!rows[i+1]) rows[i+1]=[];     // quiz amb menys de 4 preguntes: fila buida només per a la llegenda
+    rows[i+1][12]=txt;
+  });
+  rows.forEach(r=>{ for(let c=0;c<13;c++) if(r[c]===undefined) r[c]=''; });
+  return rows;
 }
 function letterToIndex(v){
   v=String(v||'').trim().toUpperCase();
@@ -1417,15 +1437,17 @@ function snapTime(v){
 
 /* ── Plantilla de quiz (CSV) ── */
 function downloadQuizTemplate(){
-  downloadCSV('plantilla-quiz.csv',[
-    ['pregunta','opcioA','opcioB','opcioC','opcioD','correcta','segons','explicacio','tipus','imatge','dobla'],
+  const rows=[
+    ['pregunta','opcioA','opcioB','opcioC','opcioD','correcta','segons','explicacio','tipus (mcq/tf/multi/fill)','imatge','dobla'],
     ['If I ____ rich, I would travel the world.','was','were','am','be','B','20','Second conditional: If I were...','mcq','',''],
     ['She said she ___ tired.','"is"','"was"','"has been"','"were"','B','20','Reported speech: present → past.','mcq','',''],
     ['London is the capital of England.','','','','','True','20','True.','tf','',''],
     ['___ is the capital of England. (escriure)','London / london','','','','','20','','fill','',''],
     ['Which are irregular verbs?','go','walk','sing','talk','A,C','20','Go i sing són irregulars.','multi','','si'],
     ['What animal is this?','Lion','Tiger','Leopard','Cheetah','D','20','Un guepard.','mcq','https://exemple.com/imatge.jpg','']
-  ]);
+  ];
+  addTypeLegend(rows);
+  downloadCSV('plantilla-quiz.csv',rows);
 }
 
 function parseMultiCorrect(str){
