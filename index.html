@@ -411,7 +411,8 @@ textarea{resize:vertical;min-height:64px}
     <div class="topbar">
       <button class="btn ghost sm" onclick="backToQuizzes()">← Tornar</button>
       <div class="row" style="gap:10px">
-        <button class="btn ghost sm" onclick="exportQuiz()">⬇ Exportar</button>
+        <button class="btn ghost sm" onclick="exportQuizCSV()" title="Per obrir-lo amb l'Excel o el Google Sheets">⬇ Exportar (CSV)</button>
+        <button class="btn ghost sm" onclick="exportQuiz()" title="Còpia idèntica per tornar a importar sense perdre res">⬇ Còpia exacta (JSON)</button>
         <button class="btn green sm" onclick="saveQuiz()">💾 Desar</button>
       </div>
     </div>
@@ -645,11 +646,15 @@ textarea{resize:vertical;min-height:64px}
       </div>
 
       <div class="help-card">
-        <h3>2 · Ja tens les preguntes en un full de càlcul?</h3>
+        <h3>2 · Fulls de càlcul, en tots dos sentits</h3>
         <p>No les tornis a escriure. Baixa <b>⬇ Plantilla de quiz (CSV)</b>, omple-la amb el
           Google Sheets o l'Excel, desa-la com a CSV i fes <b>⬆ Importar quiz (CSV)</b>.</p>
-        <p>S'obre a l'editor perquè hi facis un cop d'ull abans de desar. Si algun dia vols
-          passar un quiz a un altre centre o guardar-te'l, <b>⬇ Exportar</b> te'l baixa sencer.</p>
+        <p>S'obre a l'editor perquè hi facis un cop d'ull abans de desar.</p>
+        <p>I a l'inrevés també: dins l'editor, <b>⬇ Exportar (CSV)</b> te'l baixa en columnes per
+          retocar-lo còmodament al Sheets o passar-lo a un company, i després el tornes a importar.
+          <b>⬇ Còpia exacta (JSON)</b> és per guardar-te'l tal qual, sense perdre res.</p>
+        <p class="muted" style="font-size:14px">Dues coses que el CSV no pot dur: el
+          <b>🔀 barrejar opcions</b> (el tornes a marcar) i el títol, que surt del nom del fitxer.</p>
       </div>
 
       <div class="help-card">
@@ -717,8 +722,7 @@ textarea{resize:vertical;min-height:64px}
     </div>
 
     <p class="muted" style="text-align:center;margin:22px 0 30px">
-      Tens un dubte que no surt aquí? Tot això, amb una mica més de detall, és al document
-      <b>GUIA-professor.md</b> que acompanya l'aplicació.
+      Tens un dubte que no surt aquí? Pregunta-li a la IA… ai, vull dir al Néstor.
     </p>
   </div>
 </div>
@@ -1312,6 +1316,32 @@ function exportQuiz(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=(document.getElementById('ed-title').value||'quiz')+'.json';a.click();
 }
+
+/* Exporta el quiz amb les mateixes columnes que la plantilla d'importació,
+   perquè es pugui retocar al Sheets/Excel i tornar-lo a importar. */
+function exportQuizCSV(){
+  const title=(document.getElementById('ed-title').value||'quiz').trim();
+  const defTime=parseInt(document.getElementById('ed-time').value)||20;
+  const rows=[['pregunta','opcioA','opcioB','opcioC','opcioD','correcta','segons','explicacio','tipus','imatge','dobla']];
+  (editing.quiz.questions||[]).forEach(q=>{
+    const o=q.options||[];
+    let a='',b='',c='',d='',correcta='',tipus='mcq';
+    if(isFill(q)){
+      tipus='fill'; a=(q.accepted||[]).join(' / ');
+    }else if(isMulti(q)){
+      tipus='multi'; a=o[0]||''; b=o[1]||''; c=o[2]||''; d=o[3]||'';
+      correcta=(q.correctSet||[]).slice().sort((x,y)=>x-y).map(i=>'ABCD'[i]||'').join(',');
+    }else if(isTF(q)){
+      tipus='tf'; correcta=(q.correct===1)?'False':'True';
+    }else{
+      a=o[0]||''; b=o[1]||''; c=o[2]||''; d=o[3]||'';
+      correcta='ABCD'[q.correct||0]||'A';
+    }
+    rows.push([q.q||'',a,b,c,d,correcta,q.time||defTime,q.explanation||'',tipus,q.image||'',q.double?'si':'']);
+  });
+  downloadCSV(title.replace(/[\\/:*?"<>|]/g,'-')+'.csv',rows);
+  if(editing.quiz.shuffle) toast('Fet. Nota: el 🔀 d\'ordre barrejat no cap al CSV, el marcaràs en tornar-lo a importar');
+}
 function importQuizPrompt(){
   const inp=document.createElement('input');inp.type='file';inp.accept='.json';
   inp.onchange=e=>{
@@ -1368,6 +1398,10 @@ function letterToIndex(v){
            FALSE:1,F:1,'FALS':1};
   return m[v]!==undefined?m[v]:0;
 }
+/* columna "dobla" del CSV: qualsevol manera raonable de dir que sí */
+function isYesMarker(v){
+  return ['si','sí','s','yes','y','true','v','x','x2','2','1','doble','dobla'].includes(String(v||'').trim().toLowerCase());
+}
 function isTfMarker(v){
   v=String(v||'').trim().toLowerCase();
   return ['tf','vf','v/f','true/false','truefalse','vertader/fals','cert/fals','t/f'].includes(v);
@@ -1380,13 +1414,13 @@ function snapTime(v){
 /* ── Plantilla de quiz (CSV) ── */
 function downloadQuizTemplate(){
   downloadCSV('plantilla-quiz.csv',[
-    ['pregunta','opcioA','opcioB','opcioC','opcioD','correcta','segons','explicacio','tipus','imatge'],
-    ['If I ____ rich, I would travel the world.','was','were','am','be','B','20','Second conditional: If I were...','mcq',''],
-    ['She said she ___ tired.','"is"','"was"','"has been"','"were"','B','20','Reported speech: present → past.','mcq',''],
-    ['London is the capital of England.','','','','','True','20','True.','tf',''],
-    ['___ is the capital of England. (escriure)','London / london','','','','','20','','fill',''],
-    ['Which are irregular verbs?','go','walk','sing','talk','A,C','20','Go i sing són irregulars.','multi',''],
-    ['What animal is this?','Lion','Tiger','Leopard','Cheetah','D','20','Un guepard.','mcq','https://exemple.com/imatge.jpg']
+    ['pregunta','opcioA','opcioB','opcioC','opcioD','correcta','segons','explicacio','tipus','imatge','dobla'],
+    ['If I ____ rich, I would travel the world.','was','were','am','be','B','20','Second conditional: If I were...','mcq','',''],
+    ['She said she ___ tired.','"is"','"was"','"has been"','"were"','B','20','Reported speech: present → past.','mcq','',''],
+    ['London is the capital of England.','','','','','True','20','True.','tf','',''],
+    ['___ is the capital of England. (escriure)','London / london','','','','','20','','fill','',''],
+    ['Which are irregular verbs?','go','walk','sing','talk','A,C','20','Go i sing són irregulars.','multi','','si'],
+    ['What animal is this?','Lion','Tiger','Leopard','Cheetah','D','20','Un guepard.','mcq','https://exemple.com/imatge.jpg','']
   ]);
 }
 
@@ -1415,23 +1449,24 @@ function importQuizCSVPrompt(){
           if(!r[0]||!r[0].trim()) continue;
           const tipusRaw=(r[8]||'').trim().toLowerCase();
           const image=(r[9]||'').trim();
+          const dbl=isYesMarker(r[10]);       // columna opcional: punts dobles
           const time=snapTime(r[6]);
           const explanation=(r[7]||'').trim();
           const q=(r[0]||'').trim();
           if(tipusRaw.startsWith('fill')){
             const accepted=(r[1]||'').split(/[\/,]/).map(s=>s.trim()).filter(Boolean);
-            questions.push({q, type:'fill', accepted, time, explanation, image});
+            questions.push({q, type:'fill', accepted, time, explanation, image, double:dbl});
           }else if(tipusRaw.startsWith('multi')){
             const options=[(r[1]||'').trim(),(r[2]||'').trim(),(r[3]||'').trim(),(r[4]||'').trim()];
             const correctSet=parseMultiCorrect(r[5]||'');
-            questions.push({q, type:'multi', options, correctSet, time, explanation, image});
+            questions.push({q, type:'multi', options, correctSet, time, explanation, image, double:dbl});
           }else if(isTfMarker(tipusRaw)){
             questions.push({q, type:'tf', options:['True','False'],
-              correct:(letterToIndex(r[5])>1?0:letterToIndex(r[5])), time, explanation, image});
+              correct:(letterToIndex(r[5])>1?0:letterToIndex(r[5])), time, explanation, image, double:dbl});
           }else{
             questions.push({q, type:'mcq',
               options:[(r[1]||'').trim(),(r[2]||'').trim(),(r[3]||'').trim(),(r[4]||'').trim()],
-              correct:letterToIndex(r[5]), time, explanation, image});
+              correct:letterToIndex(r[5]), time, explanation, image, double:dbl});
           }
         }
         if(!questions.length) throw 0;
